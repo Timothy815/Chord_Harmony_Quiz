@@ -15,51 +15,68 @@ export default function App() {
   const [fretFocus, setFretFocus] = useState<number | 'all'>('all');
   const [activeChord, setActiveChord] = useState<ActiveChordContext | null>(null);
 
-  const applyAutoVoicing = (chord: ActiveChordContext, focus: number | 'all') => {
-    if (focus === 'all' || chord.isScale) {
+  const applyAutoVoicing = (midis: number[], chord: ActiveChordContext | null, focus: number | 'all') => {
+    if (midis.length === 0) {
        setVoicing(null);
        return;
     }
     
-    const rootClass = getNoteIndex(chord.rootNote);
-    const pitchClasses = chord.intervals.map(i => (rootClass + i) % 12);
+    if (chord && chord.isScale) {
+       setVoicing(null);
+       return;
+    }
     
-    // Create a 4 fret window based on the focus selection, ensuring it fits bounds
-    const startFret = Math.max(1, focus - 1);
-    const endFret = Math.max(startFret + 3, focus + 2); // usually 4 frets wide search area
+    const pitchClasses = Array.from(new Set(midis.map(m => m % 12)));
+    const rootClass = chord ? getNoteIndex(chord.rootNote) : null;
     
-    const optimalVoicing = findBestVoicingInWindow(pitchClasses, rootClass, startFret, endFret);
+    // Determine search window
+    let startFret = 1;
+    let endFret = 5; // Default to open/first position if "all"
+
+    if (focus !== 'all') {
+      startFret = Math.max(1, focus - 1);
+      endFret = Math.max(startFret + 3, focus + 2); 
+    }
+    
+    if (pitchClasses.length < 3 && !chord) {
+       setVoicing(null);
+       return; // dont try to force chord shapes onto single target notes
+    }
+
+    let optimalVoicing = findBestVoicingInWindow(pitchClasses, rootClass, startFret, endFret);
+
+    // If focus is 'all' and no voicing found in frets 1-5, try the whole neck
+    if (!optimalVoicing && focus === 'all') {
+       optimalVoicing = findBestVoicingInWindow(pitchClasses, rootClass, 1, 15);
+    }
+
     if (optimalVoicing) {
-        handleVoicingSelected(optimalVoicing);
+        setVoicing(optimalVoicing);
     } else {
         setVoicing(null); // Fallback to raw notes if no neat voicing found
     }
   };
 
   useEffect(() => {
-    if (activeChord && !activeChord.isScale && fretFocus !== 'all') {
-      applyAutoVoicing(activeChord, fretFocus as number);
-    }
+    applyAutoVoicing(activeNotes, activeChord, fretFocus);
   }, [fretFocus]);
 
   const handleNoteClick = (midi: number) => {
-    setVoicing(null);
     setActiveChord(null);
-    setActiveNotes(prev => {
-      if (prev.includes(midi)) return prev.filter(n => n !== midi);
-      return [...prev, midi].sort((a, b) => a - b);
-    });
+    let updatedNotes: number[];
+    if (activeNotes.includes(midi)) {
+        updatedNotes = activeNotes.filter(n => n !== midi);
+    } else {
+        updatedNotes = [...activeNotes, midi].sort((a, b) => a - b);
+    }
+    setActiveNotes(updatedNotes);
+    applyAutoVoicing(updatedNotes, null, fretFocus);
   };
 
   const handleNotesSelected = (midis: number[], chordContext?: ActiveChordContext) => {
     setActiveNotes(midis);
     setActiveChord(chordContext || null);
-    
-    if (chordContext && fretFocus !== 'all') {
-        applyAutoVoicing(chordContext, fretFocus as number);
-    } else {
-        setVoicing(null);
-    }
+    applyAutoVoicing(midis, chordContext || null, fretFocus);
   };
 
   const handleVoicingSelected = (newVoicing: FretVal[]) => {
@@ -160,7 +177,9 @@ export default function App() {
                     )}
                   </h2>
                   <p className="text-xs text-gray-500 mt-1">
-                      {fretFocus !== 'all' ? `Focused on frets ${activeFocusStart}-${activeFocusEnd}. Chords are auto-voiced to this position.` : 'Showing all matched pitches across the neck.'}
+                      {fretFocus !== 'all' 
+                        ? `Focused on frets ${activeFocusStart}-${activeFocusEnd}. Chords are auto-voiced to this position.` 
+                        : voicing ? 'Auto-voiced in open or low position. Select a specific position to voice elsewhere.' : 'Showing all matched pitches across the neck.'}
                   </p>
               </div>
               <button 

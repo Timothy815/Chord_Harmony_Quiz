@@ -66,7 +66,7 @@ export function generateVoicings(targetRoot: string, chordType: string) {
 
 export function findBestVoicingInWindow(
   pitchClasses: number[], 
-  rootClass: number, 
+  rootClass: number | null, 
   startFret: number, 
   endFret: number
 ): FretVal[] | null {
@@ -113,7 +113,7 @@ export function findBestVoicingInWindow(
   return maxScore > 0 ? bestVoicing : null;
 }
 
-function evaluateVoicing(voicing: FretVal[], targetPCs: number[], rootClass: number): number {
+function evaluateVoicing(voicing: FretVal[], targetPCs: number[], rootClass: number | null): number {
   const playedPCs = new Set<number>();
   let lowestNoteMidi = 999;
   let activeStrings = 0;
@@ -128,8 +128,8 @@ function evaluateVoicing(voicing: FretVal[], targetPCs: number[], rootClass: num
     }
   }
 
-  if (activeStrings < 3) return -1; 
-  if (!playedPCs.has(rootClass)) return -1;
+  if (activeStrings < 3 && targetPCs.length >= 3) return -1; 
+  if (rootClass !== null && !playedPCs.has(rootClass)) return -1;
   
   let score = 0;
   
@@ -140,7 +140,12 @@ function evaluateVoicing(voicing: FretVal[], targetPCs: number[], rootClass: num
   if (matchedTarget === targetPCs.length) score += 50;
   else score += matchedTarget * 10;
 
-  if ((lowestNoteMidi % 12) === rootClass) score += 30;
+  if (rootClass !== null) {
+      if ((lowestNoteMidi % 12) === rootClass) score += 30;
+  } else {
+      if (targetPCs.length > 0 && targetPCs.includes(lowestNoteMidi % 12)) score += 10;
+  }
+
   score += activeStrings * 2;
 
   let minF = 99, maxF = -1;

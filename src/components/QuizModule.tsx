@@ -41,8 +41,8 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
     if (!targetNotesMidi.length || activeNotes.length === 0) return;
     
     // Normalize active notes to 0-11 pitch classes and compare
-    const targetPitchClasses = [...new Set(targetNotesMidi.map(n => n % 12))].sort((a,b) => a-b);
-    const activePitchClasses = [...new Set(activeNotes.map(n => n % 12))].sort((a,b) => a-b);
+    const targetPitchClasses = [...new Set(targetNotesMidi.map(n => n % 12))].sort((a: number, b: number) => a - b);
+    const activePitchClasses = [...new Set(activeNotes.map(n => n % 12))].sort((a: number, b: number) => a - b);
     
     if (targetPitchClasses.length === activePitchClasses.length && targetPitchClasses.every((v, i) => v === activePitchClasses[i])) {
       setFeedback("Correct! You built the chord.");
