@@ -76,10 +76,10 @@ export function Fretboard({
 
   return (
     <div className="w-full max-w-5xl mx-auto overflow-x-auto pb-4 custom-scrollbar" ref={scrollRef}>
-      <div className="relative flex bg-amber-900 rounded-sm p-1 ml-4 shadow-xl" style={{ minWidth: `${TOTAL_FRETS * 55 + 60}px`}}>
+      <div className="relative flex bg-amber-900 rounded-sm p-1 shadow-xl" style={{ minWidth: `${TOTAL_FRETS * 55 + 60}px`}}>
         
         {/* Nut / Open Strings */}
-        <div className="w-12 h-48 flex flex-col justify-between border-r-4 border-gray-200 bg-[#5c4033] mr-1 select-none z-30">
+        <div className="w-12 h-48 flex flex-col justify-between border-r-4 border-gray-200 bg-[#5c4033] mr-1 select-none z-40 sticky left-0 shadow-[4px_0_12px_rgba(0,0,0,0.4)]">
           {GUITAR_TUNING.map((stringBaseMidi, stringIndex) => {
             const val = voicing ? voicing[stringIndex] : null;
             const isOpenActive = val === 0 || (!voicing && activeNotes.includes(stringBaseMidi));
@@ -88,12 +88,16 @@ export function Fretboard({
             return (
               <div 
                 key={stringIndex} 
-                className="flex-1 flex items-center justify-center border-b border-black/20 cursor-pointer hover:bg-white/20 transition-colors"
+                className={`flex-1 flex items-center justify-center border-b border-black/20 cursor-pointer hover:bg-white/20 transition-colors ${isMuted ? 'bg-red-900/30' : ''}`}
                 onClick={() => handleNutClick(stringIndex, stringBaseMidi)}
                 title={`String ${6 - stringIndex} (Open: ${midiToNoteString(stringBaseMidi).note}). Click to toggle Open/Mute.`}
               >
-                {isMuted && <span className="text-red-300 text-xs font-bold leading-none select-none drop-shadow-md">X</span>}
-                {isOpenActive && <div className="w-3 h-3 rounded-full bg-white/10 border-2 border-indigo-200 shadow-[0_0_8px_rgba(255,255,255,0.4)]"></div>}
+                {isMuted && <span className="text-red-400 text-sm font-bold leading-none select-none drop-shadow-md">X</span>}
+                {isOpenActive && (
+                    <div className="w-5 h-5 rounded-full bg-white/10 border-2 border-indigo-200 shadow-[0_0_8px_rgba(255,255,255,0.4)] flex items-center justify-center text-[10px] text-white font-bold">
+                        {midiToNoteString(stringBaseMidi).note}
+                    </div>
+                )}
                 {!isMuted && !isOpenActive && <div className="w-2 h-2 rounded-full border border-white/20 opacity-0 group-hover:opacity-100"></div>}
               </div>
             );
@@ -165,8 +169,8 @@ export function Fretboard({
       </div>
       
       {/* Fret numbers below mapping to the fretboard grid columns */}
-      <div className="flex ml-4 mt-2" style={{ minWidth: `${TOTAL_FRETS * 55 + 60}px`}}>
-        <div className="w-12 mr-1 text-center text-xs text-gray-500 font-medium">Nut</div>
+      <div className="flex mt-2 pl-1" style={{ minWidth: `${TOTAL_FRETS * 55 + 60}px`}}>
+        <div className="w-12 mr-1 text-center text-xs text-gray-500 font-medium sticky left-1 bg-gray-50 z-40">Nut</div>
         <div className="flex-1 flex">
           {Array.from({ length: TOTAL_FRETS }).map((_, i) => {
              const f = i + 1;
