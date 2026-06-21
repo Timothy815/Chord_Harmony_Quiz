@@ -1,0 +1,6 @@
+{
+  "name": "Harmony Hub",
+  "description": "Interactive music theory learning tool for chords, scales, piano, guitar, and stave reading.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
