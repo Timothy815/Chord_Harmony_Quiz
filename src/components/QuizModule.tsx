@@ -46,7 +46,8 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
       onSetTargetNotes(midis, {
         rootNote: randomRoot,
         type: randomType,
-        intervals: intervals
+        intervals: intervals,
+        hideLabel: true
       });
     }
   };
@@ -113,6 +114,14 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
                           } else {
                               setFeedback(`Incorrect. The correct answer was ${targetChord.root} ${targetChord.chord}.`);
                           }
+                          // Reveal the label
+                          const scaleDef = (CHORDS as any)[targetChord.chord];
+                          onSetTargetNotes(targetNotesMidi, {
+                            rootNote: targetChord.root,
+                            type: targetChord.chord,
+                            intervals: scaleDef.intervals,
+                            hideLabel: false
+                          });
                       }}
                       className="px-4 py-2 bg-indigo-100 hover:bg-indigo-200 disabled:opacity-50 text-indigo-800 rounded text-sm font-medium transition-colors"
                     >

@@ -7,6 +7,7 @@ export interface ActiveChordContext {
   type: string;
   intervals: number[];
   isScale?: boolean;
+  hideLabel?: boolean;
 }
 
 interface TheoryReferenceProps {

@@ -170,7 +170,7 @@ export default function App() {
               <div className="flex flex-col">
                   <h2 className="text-lg font-semibold tracking-tight text-indigo-700 flex items-center gap-2">
                     Fretboard View
-                    {voicing && activeChord && (
+                    {voicing && activeChord && !activeChord.hideLabel && (
                         <span className="bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded-full font-medium">
                           Auto-Voiced: {activeChord.rootNote} {activeChord.type}
                         </span>
