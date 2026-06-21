@@ -7,100 +7,105 @@ interface StaveProps {
   height?: number;
 }
 
-export function Stave({ activeNotes = [], width = 300, height = 120 }: StaveProps) {
-  // SVG based very simple treble clef staff
-  // Middle C (60) is below staff
-  // Treble clef bottom line is E4 (64)
-  // Treble clef top line is F5 (77)
-
-  // Map midi numbers to y-coordinates on the staff
-  // Standard lines y-coords (5 lines): 20, 40, 60, 80, 100
-  // Line interval is 20, so half-step space is 10
-  
-  // Note mapping (Treble clef)
-  // F5 (77) -> 20
-  // E5 (76) -> 30
-  // D5 (74) -> 40
-  // C5 (72) -> 50
-  // B4 (71) -> 60
-  // A4 (69) -> 70
-  // G4 (67) -> 80
-  // F4 (65) -> 90
-  // E4 (64) -> 100
-  // D4 (62) -> 110
-  // C4 (60) -> 120
+export function Stave({ activeNotes = [], width = 300, height = 240 }: StaveProps) {
+  // Grand Staff: Top is Treble Clef, Bottom is Bass Clef
+  // Middle C (60) separates them and determines rendering staff
 
   const getMidiYPos = (midi: number) => {
-    // This is an approximate mapping prioritizing natural notes
-    // We compute the number of white keys from C4 (60)
-    const baseMidi = 60; // C4
-    if (midi < 50 || midi > 84) return -100; // Out of range for simple treble
-    
-    // diatonic step from C4
+    // diationic step mapping within a C Major octaves
     const diatonicSteps = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6];
-    
     const octave = Math.floor(midi / 12) - 1;
     const noteClass = midi % 12;
-    
     const absoluteDiatonic = (octave - 4) * 7 + diatonicSteps[noteClass];
     
-    // C4 is at y=120, each diatonic step moves up by 10 (subtract 10 from y)
-    return 120 - absoluteDiatonic * 10;
+    // Notes middle C and above render on treble, below on bass
+    const isTreble = midi >= 60;
+    
+    // Treble C4 (absoluteDiatonic 0) rests at Y = 90
+    // Bass C4 (absoluteDiatonic 0) rests at Y = 120
+    const y = isTreble 
+      ? 90 - absoluteDiatonic * 5 
+      : 120 - absoluteDiatonic * 5;
+      
+    return { y, isTreble };
   };
 
-  const getLedgerLines = (y: number) => {
+  const getLedgerLines = (y: number, isTreble: boolean) => {
     const lines = [];
-    if (y >= 120) {
-      for (let l = 120; l <= y; l += 20) lines.push(l);
-    }
-    if (y <= 0) {
-      for (let l = 0; l >= y; l -= 20) lines.push(l);
+    if (isTreble) {
+      if (y <= 30) for (let l = 30; l >= Math.floor(y/10)*10; l-=10) lines.push(l);
+      if (y >= 90) for (let l = 90; l <= Math.floor(y/10)*10; l+=10) lines.push(l);
+    } else {
+      if (y <= 120) for (let l = 120; l >= Math.floor(y/10)*10; l-=10) lines.push(l);
+      if (y >= 180) for (let l = 180; l <= Math.floor(y/10)*10; l+=10) lines.push(l);
     }
     return lines;
   };
 
+  const sortedNotes = [...activeNotes].sort((a, b) => a - b);
+  const calculatedWidth = Math.max(width, 100 + sortedNotes.length * 40);
+
   return (
     <div className="flex justify-center my-6">
-      <div className="bg-white rounded p-4 shadow-sm border border-gray-200 overflow-x-auto">
-        <svg width={width} height={height + 40} className="stroke-gray-800">
-          <g transform="translate(0, 20)">
-            {/* 5 lines of the staff */}
-            {[20, 40, 60, 80, 100].map(y => (
-              <line key={y} x1="0" y1={y} x2={width} y2={y} strokeWidth="1.5" />
+      <div className="bg-white rounded p-4 shadow-sm border border-gray-200 overflow-x-auto w-full custom-scrollbar">
+        <svg width={calculatedWidth} height={height} className="stroke-gray-800 select-none">
+          <g transform="translate(20, 20)">
+            {/* Grand Staff Connecting Bracket */}
+            <path d="M 0 40 C -15 40, -15 105, -20 105 C -15 105, -15 170, 0 170" fill="none" stroke="black" strokeWidth="2" />
+            <line x1="0" y1="40" x2="0" y2="170" stroke="black" strokeWidth="1.5" />
+            
+            {/* Treble staff - 5 lines (Y: 40, 50, 60, 70, 80) */}
+            {[40, 50, 60, 70, 80].map(y => (
+              <line key={`t-${y}`} x1="0" y1={y} x2={calculatedWidth} y2={y} strokeWidth="1.5" stroke="#333" />
             ))}
             
-            {/* Treble clef symbol approximation */}
-            <text x="10" y="85" fontSize="60" fontFamily="serif" fill="black" stroke="none">𝄞</text>
+            {/* Bass staff - 5 lines (Y: 130, 140, 150, 160, 170) */}
+            {[130, 140, 150, 160, 170].map(y => (
+              <line key={`b-${y}`} x1="0" y1={y} x2={calculatedWidth} y2={y} strokeWidth="1.5" stroke="#333" />
+            ))}
+            
+            {/* Clef symbols */}
+            <text x="8" y="80" fontSize="64" fontFamily="serif" fill="black" stroke="none">𝄞</text>
+            <text x="12" y="162" fontSize="56" fontFamily="serif" fill="black" stroke="none">𝄢</text>
 
             {/* Notes */}
-            {activeNotes.map((midi, i) => {
-              const y = getMidiYPos(midi);
-              if (y < -50) return null;
+            {sortedNotes.map((midi, i) => {
+              const { y, isTreble } = getMidiYPos(midi);
+              if (y < -50 || y > 300) return null;
               
-              const isSharp = midiToNoteString(midi).note.includes('#');
+              const noteInfo = midiToNoteString(midi);
+              const isSharp = noteInfo.note.includes('#');
               const xPos = 80 + i * 40;
+
+              // Stem follows standard rules: flipped depending on position relative to middle staff line
+              const stemUp = isTreble ? y > 60 : y > 150;
 
               return (
                 <g key={`${midi}-${i}`} transform={`translate(${xPos}, ${y})`}>
                   {/* Ledger lines */}
-                  {getLedgerLines(y).map(ly => (
-                    <line key={ly} x1="-15" y1={ly - y} x2="15" y2={ly - y} stroke="black" strokeWidth="2" />
+                  {getLedgerLines(y, isTreble).map(ly => (
+                    <line key={`ledger-${ly}`} x1="-14" y1={ly - y} x2="14" y2={ly - y} stroke="black" strokeWidth="2" />
                   ))}
                   
                   {/* Note head */}
-                  <ellipse cx="0" cy="0" rx="7" ry="5" fill="black" transform="rotate(-20)" />
+                  <ellipse cx="0" cy="0" rx="7" ry="5" fill="black" transform="rotate(-15)" />
                   
-                  {/* Stem (simplified, up for lower notes, down for higher) */}
-                  {y > 60 ? (
-                    <line x1="6" y1="-25" x2="6" y2="0" stroke="black" strokeWidth="1.5" />
+                  {/* Stem */}
+                  {stemUp ? (
+                    <line x1="6" y1="-30" x2="6" y2="0" stroke="black" strokeWidth="1.5" />
                   ) : (
-                    <line x1="-6" y1="0" x2="-6" y2="25" stroke="black" strokeWidth="1.5" />
+                    <line x1="-6" y1="0" x2="-6" y2="30" stroke="black" strokeWidth="1.5" />
                   )}
 
                   {/* Sharp accidental */}
                   {isSharp && (
-                    <text x="-20" y="5" fontSize="16" fontFamily="sans-serif" fill="black" stroke="none">♯</text>
+                    <text x="-22" y="5" fontSize="18" fontFamily="sans-serif" fill="black" stroke="none" fontWeight="bold">♯</text>
                   )}
+
+                  {/* Clarifying label below stave for learners */}
+                  <text x="0" y={isTreble ? (stemUp ? 45 : 45) : (stemUp ? 45 : 45)} fill="#6B7280" stroke="none" fontSize="10" textAnchor="middle" fontFamily="sans-serif" transform={`translate(0, ${isTreble ? 100 - y : 190 - y})`}>
+                     {noteInfo.note}{noteInfo.octave}
+                  </text>
                 </g>
               );
             })}
