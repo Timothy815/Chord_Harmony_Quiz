@@ -15,6 +15,16 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
   const [options, setOptions] = useState<string[]>([]);
   const [hasGuessed, setHasGuessed] = useState<boolean>(false);
 
+  const updateTargetNotesForCustom = (root: string, type: string) => {
+     onClearNotes();
+     setFeedback(null);
+     setHasGuessed(false);
+     const scaleDef = (CHORDS as any)[type];
+     const intervals = scaleDef.intervals;
+     const midis = intervals.map((interval: number) => getMidiFromNoteStrAndOctave(root, 4) + interval);
+     setTargetNotesMidi(midis);
+  };
+
   const generateNewQuiz = () => {
     onClearNotes();
     setFeedback(null);
@@ -133,9 +143,31 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
             ) : (
               <div>
                 <p className="text-sm font-medium text-gray-500 mb-2">Select keys/frets/notes to build this chord:</p>
-                <h3 className="text-3xl font-bold text-indigo-600 my-4">
-                  {targetChord.root} {(CHORDS as any)[targetChord.chord].abbr || 'Major'}
-                </h3>
+                <div className="flex justify-center items-center gap-2 my-4">
+                  <select 
+                    value={targetChord.root}
+                    onChange={(e) => {
+                      const newRoot = e.target.value;
+                      setTargetChord({ ...targetChord, root: newRoot });
+                      updateTargetNotesForCustom(newRoot, targetChord.chord);
+                    }}
+                    className="text-3xl font-bold text-indigo-600 bg-transparent border-b-2 border-transparent hover:border-indigo-200 focus:outline-none focus:border-indigo-600 pb-1 cursor-pointer cursor-pointer text-center appearance-none text-right"
+                    style={{ textAlignLast: 'right' }}
+                  >
+                    {NOTES.slice(0, 12).map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <select
+                    value={targetChord.chord}
+                    onChange={(e) => {
+                       const newType = e.target.value;
+                       setTargetChord({ ...targetChord, chord: newType });
+                       updateTargetNotesForCustom(targetChord.root, newType);
+                    }}
+                    className="text-3xl font-bold text-indigo-600 bg-transparent border-b-2 border-transparent hover:border-indigo-200 focus:outline-none focus:border-indigo-600 pb-1 cursor-pointer cursor-pointer appearance-none"
+                  >
+                    {Object.keys(CHORDS).map(c => <option key={c} value={c}>{(CHORDS as any)[c].abbr || c}</option>)}
+                  </select>
+                </div>
                 <p className="text-xs text-gray-400 mb-4">{(CHORDS as any)[targetChord.chord].intervals.join(', ')}</p>
                 <div className="flex justify-center gap-2">
                   <button 
