@@ -5,6 +5,7 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    base: '/Chord_Harmony_Quiz/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
