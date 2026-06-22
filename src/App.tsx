@@ -4,6 +4,7 @@ import { Fretboard } from './components/Fretboard';
 import { Piano } from './components/Piano';
 import { Stave } from './components/Stave';
 import { TheoryReference, ActiveChordContext } from './components/TheoryReference';
+import { CircleOfFifths } from './components/CircleOfFifths';
 import { QuizModule } from './components/QuizModule';
 import { findBestVoicingInWindow, FretVal } from './lib/guitarVoicings';
 import { getNoteIndex, GUITAR_TUNING } from './lib/musicTheory';
@@ -212,7 +213,8 @@ export default function App() {
         </section>
 
         {/* Theory & Logic */}
-        <section>
+        <section className="space-y-8">
+          <CircleOfFifths onNotesSelected={handleNotesSelected} />
           <TheoryReference 
             onNotesSelected={handleNotesSelected} 
             onVoicingSelected={handleVoicingSelected}
