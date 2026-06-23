@@ -1,10 +1,10 @@
 const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
 
-export function playNote(frequency: number, type: OscillatorType = 'sine', duration: number = 0.5) {
+export async function playNote(frequency: number, type: OscillatorType = 'sine', duration: number = 0.5) {
   if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
+    await audioCtx.resume();
   }
-  
+
   const oscillator = audioCtx.createOscillator();
   const gainNode = audioCtx.createGain();
 
@@ -19,11 +19,11 @@ export function playNote(frequency: number, type: OscillatorType = 'sine', durat
   oscillator.stop(audioCtx.currentTime + duration);
 }
 
-export function playStrum(frequencies: number[], duration: number = 2.0, stagger: number = 0.05) {
+export async function playStrum(frequencies: number[], duration: number = 2.0, stagger: number = 0.05) {
   if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
+    await audioCtx.resume();
   }
-  
+
   frequencies.forEach((freq, idx) => {
     const oscillator = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
