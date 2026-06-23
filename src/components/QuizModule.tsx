@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NOTES, CHORDS, buildChord, SCALES, buildScale, getMidiFromNoteStrAndOctave, getNoteIndex } from '../lib/musicTheory';
+import { NOTES, CHORDS, buildChord, SCALES, buildScale, getMidiFromNoteStrAndOctave } from '../lib/musicTheory';
 
 interface QuizModuleProps {
   activeNotes: number[];
@@ -55,36 +55,14 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
     setTargetNotesMidi(midis);
     
     const targetChordFull = `${randomRoot} ${randomType}`;
-    const optionsSet = new Set<string>();
-    optionsSet.add(targetChordFull);
-    
-    // Create pool of possible answers from allowed types
-    let attempts = 0;
-    while (optionsSet.size < Math.min(4, roots.length * chordTypes.length) && attempts < 50) {
-       const rType = chordTypes[Math.floor(Math.random() * chordTypes.length)];
-       const rRoot = roots[Math.floor(Math.random() * roots.length)];
-       
-       // Avoid adding enharmonically equivalent symmetrical chords (Augmented, Diminished7) as wrong answers
-       const isSymTarget = randomType === 'Augmented' || randomType === 'Diminished7';
-       const isSymGuess = rType === 'Augmented' || rType === 'Diminished7';
-       
-       let isEquivalent = false;
-       if (isSymTarget && isSymGuess && randomType === rType) {
-         const targetScaleDef = (CHORDS as any)[randomType];
-         const guessScaleDef = (CHORDS as any)[rType];
-         const tPcs = targetScaleDef.intervals.map((i: number) => (getNoteIndex(randomRoot) + i) % 12).sort();
-         const gPcs = guessScaleDef.intervals.map((i: number) => (getNoteIndex(rRoot) + i) % 12).sort();
-         if (tPcs.every((val: number, idx: number) => val === gPcs[idx])) {
-           isEquivalent = true;
-         }
-       }
 
-       if (!isEquivalent) {
-         optionsSet.add(`${rRoot} ${rType}`);
-       }
-       attempts++;
-    }
-    const shuffledOptions = Array.from(optionsSet).sort(() => Math.random() - 0.5);
+    // All options share the same root — only chord type varies, forcing the user to identify intervals
+    const distractorTypes = chordTypes
+      .filter(t => t !== randomType)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3);
+    const shuffledOptions = [targetChordFull, ...distractorTypes.map(t => `${randomRoot} ${t}`)]
+      .sort(() => Math.random() - 0.5);
     setOptions(shuffledOptions);
 
     if (quizType === 'identify_chord') {
