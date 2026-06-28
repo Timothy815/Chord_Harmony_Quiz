@@ -2,6 +2,22 @@ import React, { useState } from 'react';
 import { CHORDS, SCALES, MODES, buildChord, buildScale, getMidiFromNoteStrAndOctave, NOTES, getNoteIndex } from '../lib/musicTheory';
 import { generateVoicings, FretVal } from '../lib/guitarVoicings';
 
+const INTERVAL_NAMES: Record<number, string> = {
+  0: 'Root',
+  1: 'Min 2nd',
+  2: 'Maj 2nd',
+  3: 'Min 3rd',
+  4: 'Maj 3rd',
+  5: 'Perf 4th',
+  6: 'Dim 5th',
+  7: 'Perf 5th',
+  8: 'Aug 5th',
+  9: 'Maj 6th',
+  10: 'Min 7th',
+  11: 'Maj 7th',
+  12: 'Octave',
+};
+
 export interface ActiveChordContext {
   rootNote: string;
   type: string;
@@ -81,7 +97,8 @@ export function TheoryReference({ onNotesSelected, onVoicingSelected }: TheoryRe
               <h3 className="font-semibold text-gray-900">{name}</h3>
               <span className="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">{rootNote}{data.abbr}</span>
             </div>
-            <p className="text-sm font-mono text-gray-500 mb-2">Intervals: {data.intervals.join(', ')}</p>
+            <p className="text-sm font-mono text-gray-500 mb-0.5">Intervals: {data.intervals.join(', ')}</p>
+            <p className="text-xs text-gray-400 mb-2">{data.intervals.map(i => INTERVAL_NAMES[i] ?? String(i)).join(' · ')}</p>
             <div className="flex gap-1 flex-wrap mb-3">
               {buildChord(rootNote, data).map(n => (
                 <span key={n} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded">{n}</span>
