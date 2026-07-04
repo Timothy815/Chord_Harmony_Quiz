@@ -83,3 +83,22 @@ export const GUITAR_TUNING = [
   { note: 'A', octave: 2, stringName: 'A' },
   { note: 'E', octave: 2, stringName: 'E' },
 ].map(s => getMidiFromNoteStrAndOctave(s.note, s.octave));
+
+// index 0 = high e, 5 = low E — matches GUITAR_TUNING indices
+export const STRING_NAMES = ['e', 'B', 'G', 'D', 'A', 'E'];
+
+export const INTERVAL_NAMES: Record<number, string> = {
+  0: 'Root',
+  1: 'Min 2nd',
+  2: 'Maj 2nd',
+  3: 'Min 3rd',
+  4: 'Maj 3rd',
+  5: 'Perf 4th',
+  6: 'Tritone',
+  7: 'Perf 5th',
+  8: 'Aug 5th',
+  9: 'Maj 6th',
+  10: 'Min 7th',
+  11: 'Maj 7th',
+  12: 'Octave',
+};
