@@ -18,6 +18,8 @@ interface MiniFretboardProps {
 }
 
 const STRING_LABELS = ['e', 'B', 'G', 'D', 'A', 'E'];
+const SINGLE_DOTS = new Set([3, 5, 7, 9]);
+const DOUBLE_DOTS = new Set([12]);
 
 const DOT_CLASSES: Record<DotType, string> = {
   root: 'bg-indigo-600 text-white',
@@ -95,6 +97,22 @@ export function MiniFretboard({
           })}
         </div>
       ))}
+
+      {/* Fret position dot markers */}
+      <div className="flex" style={{ marginLeft: '2rem', marginTop: '5px' }}>
+        {frets.map(f => (
+          <div key={f} className="w-10 flex justify-center items-center" style={{ height: '0.875rem' }}>
+            {DOUBLE_DOTS.has(f) ? (
+              <div className="flex gap-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+              </div>
+            ) : SINGLE_DOTS.has(f) ? (
+              <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+            ) : null}
+          </div>
+        ))}
+      </div>
 
       {/* Position label when not showing nut */}
       {!showNut && (

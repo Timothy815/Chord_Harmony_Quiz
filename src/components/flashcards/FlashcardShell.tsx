@@ -12,10 +12,12 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function generateNoteDeck(strings: number[], fretStart: number, fretEnd: number): NoteCardData[] {
+const LANDMARK_FRETS = [3, 5, 7, 9, 12];
+
+function generateNoteDeck(strings: number[], frets: number[]): NoteCardData[] {
   const cards: NoteCardData[] = [];
   for (const s of strings) {
-    for (let f = fretStart; f <= fretEnd; f++) {
+    for (const f of frets) {
       cards.push({ stringIndex: s, fret: f });
     }
   }
@@ -82,6 +84,7 @@ export function FlashcardShell() {
   const [noteStrings, setNoteStrings] = useState<number[]>(ALL_STRING_INDICES);
   const [fretStart, setFretStart] = useState(0);
   const [fretEnd, setFretEnd] = useState(12);
+  const [landmarkOnly, setLandmarkOnly] = useState(false);
   const [multipleChoice, setMultipleChoice] = useState(false);
 
   // Interval filters
@@ -100,19 +103,29 @@ export function FlashcardShell() {
 
   const deck: (NoteCardData | IntervalCardData)[] = cardMode === 'note' ? noteDeck : intervalDeck;
 
+  const activeFrets = landmarkOnly
+    ? LANDMARK_FRETS
+    : Array.from({ length: fretEnd - fretStart + 1 }, (_, i) => fretStart + i);
+
   const buildDecks = useCallback(() => {
-    setNoteDeck(generateNoteDeck(noteStrings, fretStart, fretEnd));
+    const frets = landmarkOnly
+      ? LANDMARK_FRETS
+      : Array.from({ length: fretEnd - fretStart + 1 }, (_, i) => fretStart + i);
+    setNoteDeck(generateNoteDeck(noteStrings, frets));
     setIntervalDeck(generateIntervalDeck(intStrings, intIntervals, intDirection));
-  }, [noteStrings, fretStart, fretEnd, intStrings, intIntervals, intDirection]);
+  }, [noteStrings, fretStart, fretEnd, landmarkOnly, intStrings, intIntervals, intDirection]);
 
   const restart = useCallback(() => {
-    setNoteDeck(generateNoteDeck(noteStrings, fretStart, fretEnd));
+    const frets = landmarkOnly
+      ? LANDMARK_FRETS
+      : Array.from({ length: fretEnd - fretStart + 1 }, (_, i) => fretStart + i);
+    setNoteDeck(generateNoteDeck(noteStrings, frets));
     setIntervalDeck(generateIntervalDeck(intStrings, intIntervals, intDirection));
     setCurrentIndex(0);
     setFlipped(false);
     setCorrect(0);
     setSeen(0);
-  }, [noteStrings, fretStart, fretEnd, intStrings, intIntervals, intDirection]);
+  }, [noteStrings, fretStart, fretEnd, landmarkOnly, intStrings, intIntervals, intDirection]);
 
   useEffect(() => { restart(); }, [cardMode]);
 
@@ -235,12 +248,23 @@ export function FlashcardShell() {
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Fret Range</p>
                 <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => setLandmarkOnly(l => !l)}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                      landmarkOnly
+                        ? 'bg-amber-500 text-white'
+                        : 'bg-white border border-gray-300 text-gray-600 hover:border-amber-400'
+                    }`}
+                  >
+                    ● Dot frets
+                  </button>
+                  <span className="text-gray-300">|</span>
                   {[{ l: '0–4', s: 0, e: 4 }, { l: '5–9', s: 5, e: 9 }, { l: '0–12', s: 0, e: 12 }].map(p => (
                     <button
                       key={p.l}
-                      onClick={() => { setFretStart(p.s); setFretEnd(p.e); }}
+                      onClick={() => { setLandmarkOnly(false); setFretStart(p.s); setFretEnd(p.e); }}
                       className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                        fretStart === p.s && fretEnd === p.e
+                        !landmarkOnly && fretStart === p.s && fretEnd === p.e
                           ? 'bg-indigo-600 text-white'
                           : 'bg-white border border-gray-300 text-gray-600 hover:border-indigo-400'
                       }`}
@@ -250,16 +274,21 @@ export function FlashcardShell() {
                   ))}
                   <input
                     type="number" min={0} max={11} value={fretStart}
-                    onChange={e => setFretStart(Math.max(0, Math.min(11, +e.target.value)))}
-                    className="w-14 border border-gray-300 rounded px-2 py-1 text-sm text-center"
+                    disabled={landmarkOnly}
+                    onChange={e => { setLandmarkOnly(false); setFretStart(Math.max(0, Math.min(11, +e.target.value))); }}
+                    className={`w-14 border border-gray-300 rounded px-2 py-1 text-sm text-center transition-opacity ${landmarkOnly ? 'opacity-30' : ''}`}
                   />
-                  <span className="text-gray-400">–</span>
+                  <span className={`text-gray-400 transition-opacity ${landmarkOnly ? 'opacity-30' : ''}`}>–</span>
                   <input
                     type="number" min={1} max={12} value={fretEnd}
-                    onChange={e => setFretEnd(Math.max(1, Math.min(12, +e.target.value)))}
-                    className="w-14 border border-gray-300 rounded px-2 py-1 text-sm text-center"
+                    disabled={landmarkOnly}
+                    onChange={e => { setLandmarkOnly(false); setFretEnd(Math.max(1, Math.min(12, +e.target.value))); }}
+                    className={`w-14 border border-gray-300 rounded px-2 py-1 text-sm text-center transition-opacity ${landmarkOnly ? 'opacity-30' : ''}`}
                   />
                 </div>
+                {landmarkOnly && (
+                  <p className="text-xs text-amber-600 mt-1.5">Frets 3 · 5 · 7 · 9 · 12 only</p>
+                )}
               </div>
               <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
                 <input
