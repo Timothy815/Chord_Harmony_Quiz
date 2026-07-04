@@ -1,7 +1,13 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { GUITAR_TUNING, STRING_NAMES } from '../../lib/musicTheory';
 import { NoteCard, NoteCardData } from './NoteCard';
 import { IntervalCard, IntervalCardData } from './IntervalCard';
+import {
+  SRSStore, CardRecord,
+  loadStore, saveStore,
+  noteKey, intervalKey,
+  isDue, nextDueAfterToday, reviewCard,
+} from '../../lib/srs';
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -13,21 +19,21 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 const LANDMARK_FRETS = [3, 5, 7, 9, 12];
+const MAX_FRET_SPAN = 4;
+const MAX_SESSION = 20;
 
-function generateNoteDeck(strings: number[], frets: number[]): NoteCardData[] {
+function generateNoteCandidates(strings: number[], frets: number[]): NoteCardData[] {
   const cards: NoteCardData[] = [];
   for (const s of strings) {
     for (const f of frets) {
       cards.push({ stringIndex: s, fret: f });
     }
   }
-  return shuffle(cards);
+  return cards;
 }
 
-const MAX_FRET_SPAN = 4;
-
 function findTargetPos(
-  rootStr: number, rootFret: number, semitones: number, dir: 'across' | 'along'
+  rootStr: number, rootFret: number, semitones: number, dir: 'across' | 'along',
 ): boolean {
   const targetMidi = GUITAR_TUNING[rootStr] + rootFret + semitones;
   if (dir === 'along') {
@@ -45,10 +51,8 @@ function findTargetPos(
   return false;
 }
 
-function generateIntervalDeck(
-  strings: number[],
-  intervals: number[],
-  direction: 'across' | 'along' | 'both'
+function generateIntervalCandidates(
+  strings: number[], intervals: number[], direction: 'across' | 'along' | 'both',
 ): IntervalCardData[] {
   const cards: IntervalCardData[] = [];
   const dirs: ('across' | 'along')[] = direction === 'both' ? ['across', 'along'] : [direction];
@@ -63,7 +67,37 @@ function generateIntervalDeck(
       }
     }
   }
-  return shuffle(cards).slice(0, 30);
+  return cards;
+}
+
+interface SRSResult<T> {
+  deck: T[];
+  dueCount: number;
+  newCount: number;
+  skippedCount: number;
+}
+
+function srsFilter<T>(
+  candidates: T[],
+  getKey: (c: T) => string,
+  store: SRSStore,
+): SRSResult<T> {
+  const due: T[] = [];
+  const fresh: T[] = [];
+  let skippedCount = 0;
+
+  for (const c of candidates) {
+    const rec = store[getKey(c)];
+    if (!rec) fresh.push(c);
+    else if (isDue(rec)) due.push(c);
+    else skippedCount++;
+  }
+
+  const deck = [...shuffle(due), ...shuffle(fresh)].slice(0, MAX_SESSION);
+  const dueCount = Math.min(due.length, MAX_SESSION);
+  const newCount = Math.max(0, deck.length - dueCount);
+
+  return { deck, dueCount, newCount, skippedCount };
 }
 
 const ALL_STRING_INDICES = [0, 1, 2, 3, 4, 5];
@@ -101,45 +135,78 @@ export function FlashcardShell() {
   const [correct, setCorrect] = useState(0);
   const [seen, setSeen] = useState(0);
 
+  // SRS state
+  const storeRef = useRef<SRSStore>({});
+  const [sessionDue, setSessionDue] = useState(0);
+  const [sessionNew, setSessionNew] = useState(0);
+  const [caughtUp, setCaughtUp] = useState(false);
+  const [nextDue, setNextDue] = useState<string | null>(null);
+
   const deck: (NoteCardData | IntervalCardData)[] = cardMode === 'note' ? noteDeck : intervalDeck;
 
-  const activeFrets = landmarkOnly
-    ? LANDMARK_FRETS
-    : Array.from({ length: fretEnd - fretStart + 1 }, (_, i) => fretStart + i);
+  const buildAndSetDecks = useCallback((store: SRSStore) => {
+    storeRef.current = store;
 
-  const buildDecks = useCallback(() => {
     const frets = landmarkOnly
       ? LANDMARK_FRETS
       : Array.from({ length: fretEnd - fretStart + 1 }, (_, i) => fretStart + i);
-    setNoteDeck(generateNoteDeck(noteStrings, frets));
-    setIntervalDeck(generateIntervalDeck(intStrings, intIntervals, intDirection));
-  }, [noteStrings, fretStart, fretEnd, landmarkOnly, intStrings, intIntervals, intDirection]);
+
+    const noteCandidates = generateNoteCandidates(noteStrings, frets);
+    const noteResult = srsFilter(noteCandidates, c => noteKey(c.stringIndex, c.fret), store);
+    setNoteDeck(noteResult.deck);
+
+    const intCandidates = generateIntervalCandidates(intStrings, intIntervals, intDirection);
+    const intResult = srsFilter(intCandidates, c => intervalKey(c.rootStringIndex, c.rootFret, c.intervalSemitones, c.direction), store);
+    setIntervalDeck(intResult.deck);
+
+    const active = cardMode === 'note' ? noteResult : intResult;
+    const activeCandidates = cardMode === 'note' ? noteCandidates : intCandidates;
+    setSessionDue(active.dueCount);
+    setSessionNew(active.newCount);
+    setCaughtUp(active.deck.length === 0 && activeCandidates.length > 0);
+    setNextDue(nextDueAfterToday(store));
+  }, [cardMode, noteStrings, fretStart, fretEnd, landmarkOnly, intStrings, intIntervals, intDirection]);
 
   const restart = useCallback(() => {
-    const frets = landmarkOnly
-      ? LANDMARK_FRETS
-      : Array.from({ length: fretEnd - fretStart + 1 }, (_, i) => fretStart + i);
-    setNoteDeck(generateNoteDeck(noteStrings, frets));
-    setIntervalDeck(generateIntervalDeck(intStrings, intIntervals, intDirection));
+    const store = loadStore();
+    buildAndSetDecks(store);
     setCurrentIndex(0);
     setFlipped(false);
     setCorrect(0);
     setSeen(0);
-  }, [noteStrings, fretStart, fretEnd, landmarkOnly, intStrings, intIntervals, intDirection]);
+  }, [buildAndSetDecks]);
 
-  useEffect(() => { restart(); }, [cardMode]);
-
+  // Restart when mode tab changes
+  const isMountedRef = useRef(false);
   useEffect(() => {
-    buildDecks();
-    setCurrentIndex(0);
-    setFlipped(false);
-    setCorrect(0);
-    setSeen(0);
-  }, []);
+    if (isMountedRef.current) restart();
+  }, [cardMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Initial load
+  useEffect(() => {
+    isMountedRef.current = true;
+    restart();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const getCardKey = useCallback((card: NoteCardData | IntervalCardData): string => {
+    if (cardMode === 'note') {
+      const c = card as NoteCardData;
+      return noteKey(c.stringIndex, c.fret);
+    }
+    const c = card as IntervalCardData;
+    return intervalKey(c.rootStringIndex, c.rootFret, c.intervalSemitones, c.direction);
+  }, [cardMode]);
 
   const handleFlip = () => setFlipped(true);
 
   const handleGotIt = () => {
+    if (currentCard) {
+      const key = getCardKey(currentCard);
+      const updated = reviewCard(storeRef.current[key], true);
+      storeRef.current = { ...storeRef.current, [key]: updated };
+      saveStore(storeRef.current);
+      setNextDue(nextDueAfterToday(storeRef.current));
+    }
     setCorrect(c => c + 1);
     setSeen(s => s + 1);
     setCurrentIndex(i => i + 1);
@@ -147,18 +214,22 @@ export function FlashcardShell() {
   };
 
   const handleTryAgain = () => {
+    if (currentCard) {
+      const key = getCardKey(currentCard);
+      const updated = reviewCard(storeRef.current[key], false);
+      storeRef.current = { ...storeRef.current, [key]: updated };
+      saveStore(storeRef.current);
+    }
     setSeen(s => s + 1);
     if (cardMode === 'note') {
       const nd = [...noteDeck];
       const [card] = nd.splice(currentIndex, 1);
-      const insertAt = Math.min(nd.length, currentIndex + 3 + Math.floor(Math.random() * 3));
-      nd.splice(insertAt, 0, card);
+      nd.splice(Math.min(nd.length, currentIndex + 3 + Math.floor(Math.random() * 3)), 0, card);
       setNoteDeck(nd);
     } else {
       const id = [...intervalDeck];
       const [card] = id.splice(currentIndex, 1);
-      const insertAt = Math.min(id.length, currentIndex + 3 + Math.floor(Math.random() * 3));
-      id.splice(insertAt, 0, card);
+      id.splice(Math.min(id.length, currentIndex + 3 + Math.floor(Math.random() * 3)), 0, card);
       setIntervalDeck(id);
     }
     setFlipped(false);
@@ -187,6 +258,10 @@ export function FlashcardShell() {
 
   const isDone = deck.length > 0 && currentIndex >= deck.length;
   const currentCard = deck[currentIndex];
+
+  // Current card's SRS record for info display
+  const cardKey = currentCard ? getCardKey(currentCard) : null;
+  const cardRec: CardRecord | undefined = cardKey ? storeRef.current[cardKey] : undefined;
 
   const modeBtn = (mode: 'note' | 'interval', label: string) => (
     <button
@@ -221,6 +296,14 @@ export function FlashcardShell() {
           {modeBtn('interval', 'Interval Cards')}
         </div>
         <div className="flex items-center gap-3 text-sm">
+          {deck.length > 0 && (sessionDue > 0 || sessionNew > 0) && (
+            <span className="text-xs text-gray-400">
+              {[
+                sessionDue > 0 ? `${sessionDue} due` : '',
+                sessionNew > 0 ? `${sessionNew} new` : '',
+              ].filter(Boolean).join(' · ')}
+            </span>
+          )}
           <span className="text-gray-500 font-medium">{correct} / {seen}</span>
           <button
             onClick={() => setShowFilters(f => !f)}
@@ -370,12 +453,40 @@ export function FlashcardShell() {
       {isDone ? (
         <div className="text-center py-16">
           <p className="text-2xl font-bold text-indigo-700 mb-2">Session Complete!</p>
-          <p className="text-gray-500 mb-6">{correct} / {seen} correct</p>
+          <p className="text-gray-500 mb-1">{correct} / {seen} correct</p>
+          {(sessionDue > 0 || sessionNew > 0) && (
+            <p className="text-sm text-gray-400 mb-1">
+              {[
+                sessionDue > 0 ? `${sessionDue} review${sessionDue !== 1 ? 's' : ''}` : '',
+                sessionNew > 0 ? `${sessionNew} new` : '',
+              ].filter(Boolean).join(' · ')}
+            </p>
+          )}
+          {nextDue ? (
+            <p className="text-sm text-gray-400 mb-8">Next review: {nextDue}</p>
+          ) : (
+            <div className="mb-8" />
+          )}
           <button
             onClick={restart}
             className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors"
           >
-            Restart
+            New Session
+          </button>
+        </div>
+      ) : caughtUp ? (
+        <div className="text-center py-16">
+          <p className="text-3xl mb-3">✓</p>
+          <p className="text-2xl font-bold text-green-700 mb-2">All caught up!</p>
+          <p className="text-gray-500 mb-2">No cards are due today.</p>
+          {nextDue && (
+            <p className="text-sm text-gray-400 mb-8">Next review: {nextDue}</p>
+          )}
+          <button
+            onClick={restart}
+            className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+          >
+            Check Again
           </button>
         </div>
       ) : deck.length === 0 ? (
@@ -407,20 +518,31 @@ export function FlashcardShell() {
             />
           )}
           {flipped && (
-            <div className="flex justify-center gap-4 mt-6">
-              <button
-                onClick={handleTryAgain}
-                className="px-6 py-2 bg-red-50 border border-red-200 text-red-700 rounded-lg font-medium hover:bg-red-100 transition-colors"
-              >
-                Try Again
-              </button>
-              <button
-                onClick={handleGotIt}
-                className="px-6 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg font-medium hover:bg-green-100 transition-colors"
-              >
-                Got It ✓
-              </button>
-            </div>
+            <>
+              {cardRec && cardRec.totalSeen > 0 && (
+                <p className="text-center text-xs text-gray-400 mt-4">
+                  Seen {cardRec.totalSeen}
+                  {cardRec.totalSeen === 1 ? ' time' : ' times'}
+                  {' · '}
+                  Streak: {cardRec.repetitions}
+                  {cardRec.repetitions >= 5 ? ' ★' : cardRec.repetitions >= 3 ? ' ◆' : ''}
+                </p>
+              )}
+              <div className="flex justify-center gap-4 mt-3">
+                <button
+                  onClick={handleTryAgain}
+                  className="px-6 py-2 bg-red-50 border border-red-200 text-red-700 rounded-lg font-medium hover:bg-red-100 transition-colors"
+                >
+                  Try Again
+                </button>
+                <button
+                  onClick={handleGotIt}
+                  className="px-6 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg font-medium hover:bg-green-100 transition-colors"
+                >
+                  Got It ✓
+                </button>
+              </div>
+            </>
           )}
         </div>
       ) : null}
