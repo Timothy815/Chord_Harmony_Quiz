@@ -98,13 +98,13 @@ function srsFilter<T>(
 }
 
 const ALL_STRING_INDICES = [0, 1, 2, 3, 4, 5];
-const DEFAULT_INTERVALS = [3, 4, 5, 7, 9, 10];
+const DEFAULT_INTERVALS = [3, 4, 5, 7, 9, 10, 12];
 
 const INTERVAL_OPTIONS = [
   { s: 1, n: 'Min 2nd' }, { s: 2, n: 'Maj 2nd' }, { s: 3, n: 'Min 3rd' },
   { s: 4, n: 'Maj 3rd' }, { s: 5, n: 'Perf 4th' }, { s: 6, n: 'Tritone' },
   { s: 7, n: 'Perf 5th' }, { s: 8, n: 'Aug 5th' }, { s: 9, n: 'Maj 6th' },
-  { s: 10, n: 'Min 7th' }, { s: 11, n: 'Maj 7th' },
+  { s: 10, n: 'Min 7th' }, { s: 11, n: 'Maj 7th' }, { s: 12, n: 'Octave' },
 ];
 
 export function FlashcardShell() {
