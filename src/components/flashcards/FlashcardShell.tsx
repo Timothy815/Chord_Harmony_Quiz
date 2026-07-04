@@ -56,7 +56,7 @@ function generateIntervalCandidates(
   const cards: IntervalCardData[] = [];
   const dirs: ('across' | 'along')[] = direction === 'both' ? ['across', 'along'] : [direction];
   for (const s of strings) {
-    for (let f = 0; f <= 12; f++) {
+    for (let f = 1; f <= 12; f++) {
       for (const sem of intervals) {
         for (const dir of dirs) {
           if (findTargetPos(s, f, sem, dir)) {
