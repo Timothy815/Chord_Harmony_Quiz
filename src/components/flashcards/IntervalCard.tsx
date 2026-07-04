@@ -177,12 +177,17 @@ export function IntervalCard({ card, level, flipped, onFlip, onCorrect, onIncorr
     <div className="bg-white rounded-xl border border-indigo-100 shadow-md p-6">
       {/* Question header */}
       <div className="text-center mb-5">
-        {level === 1 && <p className="text-sm text-gray-500">What interval is shown?</p>}
+        {level === 1 && (
+          <p className="text-sm text-gray-500">
+            What interval is the amber dot above the{' '}
+            <span className="font-semibold text-indigo-600">① root</span>?
+          </p>
+        )}
         {level === 2 && (
           <>
             <p className="text-xs text-gray-400 mb-1">Locate the…</p>
             <p className="text-xl font-bold text-indigo-700">{correctName}</p>
-            <p className="text-xs text-gray-400 mt-1">from the indigo dot</p>
+            <p className="text-xs text-gray-400 mt-1">above the <span className="font-semibold text-indigo-600">① root</span></p>
           </>
         )}
         {level === 3 && (

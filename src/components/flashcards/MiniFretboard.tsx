@@ -90,7 +90,9 @@ export function MiniFretboard({
                         onFretClick(s, f);
                       }
                     }}
-                  />
+                  >
+                    {dotHere.type === 'root' ? '1' : null}
+                  </div>
                 ) : null}
               </div>
             );
