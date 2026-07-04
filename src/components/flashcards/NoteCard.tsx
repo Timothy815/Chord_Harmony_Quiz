@@ -38,7 +38,7 @@ export function NoteCard({ card, flipped, multipleChoice, onFlip, onCorrect, onI
 
   useEffect(() => {
     if (flipped) {
-      playMidiNote(midi, 2.0);
+      playMidiNote(midi);
     }
   }, [flipped]);
 
@@ -110,7 +110,7 @@ export function NoteCard({ card, flipped, multipleChoice, onFlip, onCorrect, onI
             <Stave activeNotes={[midi]} width={240} height={200} />
           </div>
           <button
-            onClick={() => playMidiNote(midi, 2.0)}
+            onClick={() => playMidiNote(midi)}
             className="mt-2 px-5 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-100 transition-colors"
           >
             ▶ Play
