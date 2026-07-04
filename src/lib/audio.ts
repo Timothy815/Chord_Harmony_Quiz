@@ -1,46 +1,52 @@
 const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
 
-export async function playNote(frequency: number, type: OscillatorType = 'sine', duration: number = 0.5) {
-  if (audioCtx.state === 'suspended') {
-    await audioCtx.resume();
+// Guitar harmonic series: amplitudes taper faster than a sawtooth,
+// giving the warm, rounded timbre of a plucked string.
+function makeGuitarWave(): PeriodicWave {
+  const n = 32;
+  const real = new Float32Array(n);
+  const imag = new Float32Array(n);
+  for (let k = 1; k < n; k++) {
+    // Amplitude envelope: strong fundamental, harmonics roll off as ~1/k^1.5
+    imag[k] = Math.pow(-1, k + 1) / Math.pow(k, 1.5);
   }
+  return audioCtx.createPeriodicWave(real, imag, { disableNormalization: false });
+}
 
-  const oscillator = audioCtx.createOscillator();
-  const gainNode = audioCtx.createGain();
+const guitarWave = makeGuitarWave();
 
-  oscillator.type = type;
-  oscillator.frequency.value = frequency;
+function scheduleGuitarNote(frequency: number, startTime: number, duration: number, peakGain = 0.45) {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
 
-  oscillator.connect(gainNode);
-  gainNode.connect(audioCtx.destination);
+  osc.setPeriodicWave(guitarWave);
+  osc.frequency.value = frequency;
 
-  oscillator.start();
-  gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
-  oscillator.stop(audioCtx.currentTime + duration);
+  // Pluck envelope: instant attack, quick initial decay, long exponential release
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(peakGain, startTime + 0.003);   // ~3 ms attack
+  gain.gain.exponentialRampToValueAtTime(peakGain * 0.4, startTime + 0.06); // body snap
+  gain.gain.exponentialRampToValueAtTime(0.00001, startTime + duration);
+
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(startTime);
+  osc.stop(startTime + duration);
+}
+
+export async function playGuitarNote(frequency: number, duration = 2.0) {
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+  scheduleGuitarNote(frequency, audioCtx.currentTime, duration);
+}
+
+export async function playNote(frequency: number, _type: OscillatorType = 'sine', duration: number = 0.5) {
+  await playGuitarNote(frequency, duration);
 }
 
 export async function playStrum(frequencies: number[], duration: number = 2.0, stagger: number = 0.05) {
-  if (audioCtx.state === 'suspended') {
-    await audioCtx.resume();
-  }
-
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
   frequencies.forEach((freq, idx) => {
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-
-    const startTime = audioCtx.currentTime + idx * stagger;
-
-    oscillator.type = 'triangle';
-    oscillator.frequency.value = freq;
-
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-
-    oscillator.start(startTime);
-    gainNode.gain.setValueAtTime(0, startTime);
-    gainNode.gain.linearRampToValueAtTime(0.3, startTime + 0.02);
-    gainNode.gain.exponentialRampToValueAtTime(0.00001, startTime + duration);
-    oscillator.stop(startTime + duration);
+    scheduleGuitarNote(freq, audioCtx.currentTime + idx * stagger, duration, 0.35);
   });
 }
 
