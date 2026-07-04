@@ -115,7 +115,8 @@ export function FlashcardShell() {
   const [noteStrings, setNoteStrings] = useState<number[]>(ALL_STRING_INDICES);
   const [fretStart, setFretStart] = useState(0);
   const [fretEnd, setFretEnd] = useState(12);
-  const [landmarkOnly, setLandmarkOnly] = useState(false);
+  const [fretMode, setFretMode] = useState<'range' | 'landmark' | 'position'>('range');
+  const [positionFret, setPositionFret] = useState(5);
   const [multipleChoice, setMultipleChoice] = useState(false);
 
   // Interval filters
@@ -143,9 +144,10 @@ export function FlashcardShell() {
   const buildAndSetDecks = useCallback((store: SRSStore) => {
     storeRef.current = store;
 
-    const frets = landmarkOnly
-      ? LANDMARK_FRETS
-      : Array.from({ length: fretEnd - fretStart + 1 }, (_, i) => fretStart + i);
+    const frets =
+      fretMode === 'position' ? [positionFret] :
+      fretMode === 'landmark' ? LANDMARK_FRETS :
+      Array.from({ length: fretEnd - fretStart + 1 }, (_, i) => fretStart + i);
 
     const noteCandidates = generateNoteCandidates(noteStrings, frets);
     const noteResult = srsFilter(noteCandidates, c => noteKey(c.stringIndex, c.fret), store);
@@ -159,7 +161,7 @@ export function FlashcardShell() {
     setSessionDue(active.dueCount);
     setSessionNew(active.newCount);
     setNextDue(nextDueAfterToday(store));
-  }, [cardMode, noteStrings, fretStart, fretEnd, landmarkOnly, intStrings, intIntervals, intDirection]);
+  }, [cardMode, noteStrings, fretStart, fretEnd, fretMode, positionFret, intStrings, intIntervals, intDirection]);
 
   const restart = useCallback(() => {
     const store = loadStore();
@@ -323,25 +325,35 @@ export function FlashcardShell() {
                 </div>
               </div>
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Fret Range</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Fret Selection</p>
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
-                    onClick={() => setLandmarkOnly(l => !l)}
+                    onClick={() => setFretMode(m => m === 'landmark' ? 'range' : 'landmark')}
                     className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                      landmarkOnly
+                      fretMode === 'landmark'
                         ? 'bg-amber-500 text-white'
                         : 'bg-white border border-gray-300 text-gray-600 hover:border-amber-400'
                     }`}
                   >
                     ● Dot frets
                   </button>
+                  <button
+                    onClick={() => setFretMode(m => m === 'position' ? 'range' : 'position')}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                      fretMode === 'position'
+                        ? 'bg-violet-600 text-white'
+                        : 'bg-white border border-gray-300 text-gray-600 hover:border-violet-400'
+                    }`}
+                  >
+                    ⬤ Position
+                  </button>
                   <span className="text-gray-300">|</span>
                   {[{ l: '0–4', s: 0, e: 4 }, { l: '5–9', s: 5, e: 9 }, { l: '0–12', s: 0, e: 12 }].map(p => (
                     <button
                       key={p.l}
-                      onClick={() => { setLandmarkOnly(false); setFretStart(p.s); setFretEnd(p.e); }}
+                      onClick={() => { setFretMode('range'); setFretStart(p.s); setFretEnd(p.e); }}
                       className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                        !landmarkOnly && fretStart === p.s && fretEnd === p.e
+                        fretMode === 'range' && fretStart === p.s && fretEnd === p.e
                           ? 'bg-indigo-600 text-white'
                           : 'bg-white border border-gray-300 text-gray-600 hover:border-indigo-400'
                       }`}
@@ -351,20 +363,46 @@ export function FlashcardShell() {
                   ))}
                   <input
                     type="number" min={0} max={11} value={fretStart}
-                    disabled={landmarkOnly}
-                    onChange={e => { setLandmarkOnly(false); setFretStart(Math.max(0, Math.min(11, +e.target.value))); }}
-                    className={`w-14 border border-gray-300 rounded px-2 py-1 text-sm text-center transition-opacity ${landmarkOnly ? 'opacity-30' : ''}`}
+                    disabled={fretMode !== 'range'}
+                    onChange={e => { setFretMode('range'); setFretStart(Math.max(0, Math.min(11, +e.target.value))); }}
+                    className={`w-14 border border-gray-300 rounded px-2 py-1 text-sm text-center transition-opacity ${fretMode !== 'range' ? 'opacity-30' : ''}`}
                   />
-                  <span className={`text-gray-400 transition-opacity ${landmarkOnly ? 'opacity-30' : ''}`}>–</span>
+                  <span className={`text-gray-400 transition-opacity ${fretMode !== 'range' ? 'opacity-30' : ''}`}>–</span>
                   <input
                     type="number" min={1} max={12} value={fretEnd}
-                    disabled={landmarkOnly}
-                    onChange={e => { setLandmarkOnly(false); setFretEnd(Math.max(1, Math.min(12, +e.target.value))); }}
-                    className={`w-14 border border-gray-300 rounded px-2 py-1 text-sm text-center transition-opacity ${landmarkOnly ? 'opacity-30' : ''}`}
+                    disabled={fretMode !== 'range'}
+                    onChange={e => { setFretMode('range'); setFretEnd(Math.max(1, Math.min(12, +e.target.value))); }}
+                    className={`w-14 border border-gray-300 rounded px-2 py-1 text-sm text-center transition-opacity ${fretMode !== 'range' ? 'opacity-30' : ''}`}
                   />
                 </div>
-                {landmarkOnly && (
+                {fretMode === 'landmark' && (
                   <p className="text-xs text-amber-600 mt-1.5">Frets 3 · 5 · 7 · 9 · 12 only</p>
+                )}
+                {fretMode === 'position' && (
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-gray-500">Fret:</span>
+                    {[0, 3, 5, 7, 9, 12].map(f => (
+                      <button
+                        key={f}
+                        onClick={() => setPositionFret(f)}
+                        className={`w-8 h-8 rounded text-sm font-mono font-medium transition-colors ${
+                          positionFret === f
+                            ? 'bg-violet-600 text-white'
+                            : 'bg-white border border-gray-300 text-gray-600 hover:border-violet-400'
+                        }`}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                    <input
+                      type="number" min={0} max={12} value={positionFret}
+                      onChange={e => setPositionFret(Math.max(0, Math.min(12, +e.target.value)))}
+                      className="w-14 border border-gray-300 rounded px-2 py-1 text-sm text-center"
+                    />
+                    <span className="text-xs text-violet-600">
+                      {noteStrings.length === 6 ? '6 cards' : `${noteStrings.length} cards`}
+                    </span>
+                  </div>
                 )}
               </div>
               <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
