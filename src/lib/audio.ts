@@ -1,56 +1,66 @@
-const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+import * as Tone from 'tone';
 
-// Guitar harmonic series: amplitudes taper faster than a sawtooth,
-// giving the warm, rounded timbre of a plucked string.
-function makeGuitarWave(): PeriodicWave {
-  const n = 32;
-  const real = new Float32Array(n);
-  const imag = new Float32Array(n);
-  for (let k = 1; k < n; k++) {
-    // Amplitude envelope: strong fundamental, harmonics roll off as ~1/k^1.5
-    imag[k] = Math.pow(-1, k + 1) / Math.pow(k, 1.5);
-  }
-  return audioCtx.createPeriodicWave(real, imag, { disableNormalization: false });
+const GUITAR_BASE = `${import.meta.env.BASE_URL}audio/guitar-acoustic/`;
+const GUITAR_NOTES: Record<string, string> = {
+  E2: 'E2.mp3', G2: 'G2.mp3', A2: 'A2.mp3', B2: 'B2.mp3',
+  D3: 'D3.mp3', E3: 'E3.mp3', G3: 'G3.mp3', B3: 'B3.mp3',
+  E4: 'E4.mp3', G4: 'G4.mp3', A4: 'A4.mp3', D5: 'D5.mp3',
+};
+
+let sampler: Tone.Sampler | null = null;
+let loadPromise: Promise<void> | null = null;
+
+function ensureLoaded(): Promise<void> {
+  if (loadPromise) return loadPromise;
+  loadPromise = new Promise<void>((resolve) => {
+    sampler = new Tone.Sampler({
+      urls: GUITAR_NOTES,
+      baseUrl: GUITAR_BASE,
+      onload: resolve,
+    }).toDestination();
+    sampler.volume.value = 4;
+  });
+  return loadPromise;
 }
 
-const guitarWave = makeGuitarWave();
+async function resume() {
+  await Tone.start();
+  await ensureLoaded();
+}
 
-function scheduleGuitarNote(frequency: number, startTime: number, duration: number, peakGain = 0.45) {
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-
-  osc.setPeriodicWave(guitarWave);
-  osc.frequency.value = frequency;
-
-  // Pluck envelope: instant attack, quick initial decay, long exponential release
-  gain.gain.setValueAtTime(0, startTime);
-  gain.gain.linearRampToValueAtTime(peakGain, startTime + 0.003);   // ~3 ms attack
-  gain.gain.exponentialRampToValueAtTime(peakGain * 0.4, startTime + 0.06); // body snap
-  gain.gain.exponentialRampToValueAtTime(0.00001, startTime + duration);
-
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.start(startTime);
-  osc.stop(startTime + duration);
+// Convert MIDI number to Tone.js note string (e.g. 64 → "E4")
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+function midiToToneNote(midi: number): string {
+  const octave = Math.floor(midi / 12) - 1;
+  return `${NOTE_NAMES[midi % 12]}${octave}`;
 }
 
 export async function playGuitarNote(frequency: number, duration = 2.0) {
-  if (audioCtx.state === 'suspended') await audioCtx.resume();
-  scheduleGuitarNote(frequency, audioCtx.currentTime, duration);
+  await resume();
+  sampler!.triggerAttackRelease(`${frequency.toFixed(3)}hz`, duration);
 }
 
-export async function playNote(frequency: number, _type: OscillatorType = 'sine', duration: number = 0.5) {
+// Kept for backwards-compat — delegates to sampler, ignores oscillator type
+export async function playNote(frequency: number, _type?: string, duration = 2.0) {
   await playGuitarNote(frequency, duration);
 }
 
-export async function playStrum(frequencies: number[], duration: number = 2.0, stagger: number = 0.05) {
-  if (audioCtx.state === 'suspended') await audioCtx.resume();
-  frequencies.forEach((freq, idx) => {
-    scheduleGuitarNote(freq, audioCtx.currentTime + idx * stagger, duration, 0.35);
+export async function playStrum(
+  frequencies: number[],
+  duration = 2.0,
+  stagger = 0.05,
+) {
+  await resume();
+  const now = Tone.now();
+  frequencies.forEach((freq, i) => {
+    sampler!.triggerAttackRelease(`${freq.toFixed(3)}hz`, duration, now + i * stagger);
   });
 }
 
-// Frequencies for generic ranges
-export const noteToFreq = (midiNote: number) => {
-  return 440 * Math.pow(2, (midiNote - 69) / 12);
-};
+// Play a note by MIDI number (used internally by components)
+export async function playMidiNote(midi: number, duration = 2.0) {
+  await resume();
+  sampler!.triggerAttackRelease(midiToToneNote(midi), duration);
+}
+
+export const noteToFreq = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);

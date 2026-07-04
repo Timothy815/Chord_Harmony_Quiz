@@ -32,20 +32,24 @@ const ALL_INTERVAL_OPTIONS = [
   { semitones: 11, name: 'Maj 7th' },
 ];
 
+const MAX_FRET_SPAN = 4;
+
 function findTarget(
   rootStr: number, rootFret: number, semitones: number, dir: 'across' | 'along'
 ): { stringIndex: number; fret: number } | null {
   const targetMidi = GUITAR_TUNING[rootStr] + rootFret + semitones;
   if (dir === 'along') {
     const tf = rootFret + semitones;
-    return tf <= 12 ? { stringIndex: rootStr, fret: tf } : null;
+    return tf <= 12 && tf - rootFret <= MAX_FRET_SPAN ? { stringIndex: rootStr, fret: tf } : null;
   }
   for (let diff = 1; diff <= 5; diff++) {
     for (const sign of [1, -1] as const) {
       const ts = rootStr + diff * sign;
       if (ts < 0 || ts > 5) continue;
       const tf = targetMidi - GUITAR_TUNING[ts];
-      if (tf >= 0 && tf <= 12) return { stringIndex: ts, fret: tf };
+      if (tf >= 0 && tf <= 12 && Math.abs(tf - rootFret) <= MAX_FRET_SPAN) {
+        return { stringIndex: ts, fret: tf };
+      }
     }
   }
   return null;

@@ -22,19 +22,22 @@ function generateNoteDeck(strings: number[], fretStart: number, fretEnd: number)
   return shuffle(cards);
 }
 
+const MAX_FRET_SPAN = 4;
+
 function findTargetPos(
   rootStr: number, rootFret: number, semitones: number, dir: 'across' | 'along'
 ): boolean {
   const targetMidi = GUITAR_TUNING[rootStr] + rootFret + semitones;
   if (dir === 'along') {
-    return rootFret + semitones <= 12;
+    const tf = rootFret + semitones;
+    return tf <= 12 && tf - rootFret <= MAX_FRET_SPAN;
   }
   for (let diff = 1; diff <= 5; diff++) {
     for (const sign of [1, -1] as const) {
       const ts = rootStr + diff * sign;
       if (ts < 0 || ts > 5) continue;
       const tf = targetMidi - GUITAR_TUNING[ts];
-      if (tf >= 0 && tf <= 12) return true;
+      if (tf >= 0 && tf <= 12 && Math.abs(tf - rootFret) <= MAX_FRET_SPAN) return true;
     }
   }
   return false;
