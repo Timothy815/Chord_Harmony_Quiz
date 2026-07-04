@@ -20,7 +20,6 @@ function shuffle<T>(arr: T[]): T[] {
 
 const LANDMARK_FRETS = [3, 5, 7, 9, 12];
 const MAX_FRET_SPAN = 4;
-const MAX_SESSION = 20;
 
 function generateNoteCandidates(strings: number[], frets: number[]): NoteCardData[] {
   const cards: NoteCardData[] = [];
@@ -74,7 +73,6 @@ interface SRSResult<T> {
   deck: T[];
   dueCount: number;
   newCount: number;
-  skippedCount: number;
 }
 
 function srsFilter<T>(
@@ -84,20 +82,19 @@ function srsFilter<T>(
 ): SRSResult<T> {
   const due: T[] = [];
   const fresh: T[] = [];
-  let skippedCount = 0;
+  const scheduled: T[] = [];
 
   for (const c of candidates) {
     const rec = store[getKey(c)];
     if (!rec) fresh.push(c);
     else if (isDue(rec)) due.push(c);
-    else skippedCount++;
+    else scheduled.push(c);
   }
 
-  const deck = [...shuffle(due), ...shuffle(fresh)].slice(0, MAX_SESSION);
-  const dueCount = Math.min(due.length, MAX_SESSION);
-  const newCount = Math.max(0, deck.length - dueCount);
+  // Due and new first; scheduled cards follow for open-ended drilling
+  const deck = [...shuffle(due), ...shuffle(fresh), ...shuffle(scheduled)];
 
-  return { deck, dueCount, newCount, skippedCount };
+  return { deck, dueCount: due.length, newCount: fresh.length };
 }
 
 const ALL_STRING_INDICES = [0, 1, 2, 3, 4, 5];
@@ -139,7 +136,6 @@ export function FlashcardShell() {
   const storeRef = useRef<SRSStore>({});
   const [sessionDue, setSessionDue] = useState(0);
   const [sessionNew, setSessionNew] = useState(0);
-  const [caughtUp, setCaughtUp] = useState(false);
   const [nextDue, setNextDue] = useState<string | null>(null);
 
   const deck: (NoteCardData | IntervalCardData)[] = cardMode === 'note' ? noteDeck : intervalDeck;
@@ -160,10 +156,8 @@ export function FlashcardShell() {
     setIntervalDeck(intResult.deck);
 
     const active = cardMode === 'note' ? noteResult : intResult;
-    const activeCandidates = cardMode === 'note' ? noteCandidates : intCandidates;
     setSessionDue(active.dueCount);
     setSessionNew(active.newCount);
-    setCaughtUp(active.deck.length === 0 && activeCandidates.length > 0);
     setNextDue(nextDueAfterToday(store));
   }, [cardMode, noteStrings, fretStart, fretEnd, landmarkOnly, intStrings, intIntervals, intDirection]);
 
@@ -472,21 +466,6 @@ export function FlashcardShell() {
             className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors"
           >
             New Session
-          </button>
-        </div>
-      ) : caughtUp ? (
-        <div className="text-center py-16">
-          <p className="text-3xl mb-3">✓</p>
-          <p className="text-2xl font-bold text-green-700 mb-2">All caught up!</p>
-          <p className="text-gray-500 mb-2">No cards are due today.</p>
-          {nextDue && (
-            <p className="text-sm text-gray-400 mb-8">Next review: {nextDue}</p>
-          )}
-          <button
-            onClick={restart}
-            className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
-          >
-            Check Again
           </button>
         </div>
       ) : deck.length === 0 ? (
