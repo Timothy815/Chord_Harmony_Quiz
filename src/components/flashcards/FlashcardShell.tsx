@@ -515,7 +515,7 @@ export function FlashcardShell() {
           </p>
           {cardMode === 'note' ? (
             <NoteCard
-              key={currentIndex}
+              key={`${currentIndex}-${seen}`}
               card={currentCard as NoteCardData}
               flipped={flipped}
               multipleChoice={multipleChoice}
@@ -525,7 +525,7 @@ export function FlashcardShell() {
             />
           ) : (
             <IntervalCard
-              key={currentIndex}
+              key={`${currentIndex}-${seen}`}
               card={currentCard as IntervalCardData}
               level={intLevel}
               flipped={flipped}
