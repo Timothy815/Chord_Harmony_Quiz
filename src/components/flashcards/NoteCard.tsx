@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { GUITAR_TUNING, STRING_NAMES, midiToNoteString, NOTES } from '../../lib/musicTheory';
-import { playMidiNote, noteToFreq } from '../../lib/audio';
+import { playMidiNote } from '../../lib/audio';
 import { Stave } from '../Stave';
 
 export interface NoteCardData {
@@ -49,21 +49,10 @@ export function NoteCard({ card, flipped, multipleChoice, onFlip, onCorrect, onI
   };
 
   return (
-    <div style={{ perspective: '1200px' }}>
-      <div
-        style={{
-          position: 'relative',
-          transformStyle: 'preserve-3d',
-          transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
-          transition: 'transform 0.45s ease',
-          minHeight: '380px',
-        }}
-      >
-        {/* Front face */}
-        <div
-          style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
-          className="absolute inset-0 bg-white rounded-xl border border-indigo-100 shadow-md flex flex-col items-center justify-center p-8"
-        >
+    <div className="bg-white rounded-xl border border-indigo-100 shadow-md">
+      {/* Front face */}
+      {!flipped && (
+        <div className="flex flex-col items-center justify-center p-8">
           <div className="text-center mb-8">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">String</p>
             <p className="text-6xl font-bold text-indigo-600 font-mono">{STRING_NAMES[card.stringIndex]}</p>
@@ -91,21 +80,16 @@ export function NoteCard({ card, flipped, multipleChoice, onFlip, onCorrect, onI
             </button>
           )}
         </div>
+      )}
 
-        {/* Back face */}
-        <div
-          style={{
-            backfaceVisibility: 'hidden',
-            WebkitBackfaceVisibility: 'hidden',
-            transform: 'rotateY(180deg)',
-          }}
-          className="absolute inset-0 bg-white rounded-xl border border-indigo-100 shadow-md flex flex-col items-center justify-center p-8"
-        >
+      {/* Back face */}
+      {flipped && (
+        <div className="flex flex-col items-center p-8">
           {selectedOption && selectedOption !== note && (
             <p className="text-red-500 text-sm mb-2">You picked {selectedOption}</p>
           )}
           <p className="text-7xl font-bold text-indigo-600 mb-1">{note}</p>
-          <p className="text-gray-400 text-lg mb-4">{note}{octave}</p>
+          <p className="text-gray-400 text-lg mb-2">{note}{octave}</p>
           <div className="w-full max-w-xs">
             <Stave activeNotes={[midi]} width={240} height={200} />
           </div>
@@ -116,7 +100,7 @@ export function NoteCard({ card, flipped, multipleChoice, onFlip, onCorrect, onI
             ▶ Play
           </button>
         </div>
-      </div>
+      )}
     </div>
   );
 }
