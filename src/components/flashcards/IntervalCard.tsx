@@ -119,9 +119,7 @@ export function IntervalCard({ card, level, flipped, onFlip, onCorrect, onIncorr
 
   // Build dots for MiniFretboard
   const dots: FretDot[] = [];
-  if (level !== 3) {
-    dots.push({ stringIndex: card.rootStringIndex, fret: card.rootFret, type: 'root' });
-  }
+  dots.push({ stringIndex: card.rootStringIndex, fret: card.rootFret, type: 'root' });
   if (level === 1) {
     dots.push({ stringIndex: target.stringIndex, fret: target.fret, type: 'interval' });
   } else if (level === 2) {
