@@ -53,11 +53,11 @@ export function MiniFretboard({
   ).filter(f => f > 0 || !showNut);
 
   return (
-    <div className="inline-block select-none">
+    <div className="w-full overflow-x-auto select-none">
       {/* Fret number header — aligns with grid columns only */}
       <div className="flex" style={{ marginLeft: '2rem' }}>
         {gridFrets.map(f => (
-          <div key={f} className="w-10 text-center text-xs text-gray-400">{f}</div>
+          <div key={f} className="w-8 text-center text-xs text-gray-400">{f}</div>
         ))}
       </div>
 
@@ -96,7 +96,7 @@ export function MiniFretboard({
               return (
                 <div
                   key={f}
-                  className="w-10 flex-shrink-0 flex items-center justify-center relative"
+                  className="w-8 flex-shrink-0 flex items-center justify-center relative"
                   style={{
                     height: '100%',
                     borderRight: '1px solid #d1d5db',
@@ -126,7 +126,7 @@ export function MiniFretboard({
       {/* Position dot markers */}
       <div className="flex" style={{ marginLeft: '2rem', marginTop: '5px' }}>
         {gridFrets.map(f => (
-          <div key={f} className="w-10 flex justify-center items-center" style={{ height: '0.875rem' }}>
+          <div key={f} className="w-8 flex justify-center items-center" style={{ height: '0.875rem' }}>
             {DOUBLE_DOTS.has(f) ? (
               <div className="flex gap-0.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />

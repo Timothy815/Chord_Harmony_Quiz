@@ -86,6 +86,12 @@ export function IntervalCard({ card, level, flipped, onFlip, onCorrect, onIncorr
   const win = computeWindow(card.rootStringIndex, card.rootFret, target.stringIndex, target.fret);
   const correctName = INTERVAL_NAMES[card.intervalSemitones] ?? `${card.intervalSemitones} st`;
 
+  // Always display the full 6-string neck so the learner sees spatial context
+  const boardStartString = 0;
+  const boardEndString = 5;
+  const boardStartFret = 0;
+  const boardEndFret = 12;
+
   const l1Options = useMemo(() => {
     const others = ALL_INTERVAL_OPTIONS
       .filter(o => o.semitones !== card.intervalSemitones)
@@ -209,10 +215,10 @@ export function IntervalCard({ card, level, flipped, onFlip, onCorrect, onIncorr
       {/* Mini fretboard */}
       <div className="flex justify-center mb-5">
         <MiniFretboard
-          startString={win.startString}
-          endString={win.endString}
-          startFret={win.startFret}
-          endFret={win.endFret}
+          startString={boardStartString}
+          endString={boardEndString}
+          startFret={boardStartFret}
+          endFret={boardEndFret}
           dots={dots}
           onFretClick={
             level === 2 && !l2Selected
