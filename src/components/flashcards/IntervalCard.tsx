@@ -30,6 +30,7 @@ const ALL_INTERVAL_OPTIONS = [
   { semitones: 9, name: 'Maj 6th' },
   { semitones: 10, name: 'Min 7th' },
   { semitones: 11, name: 'Maj 7th' },
+  { semitones: 12, name: 'Octave' },
 ];
 
 const MAX_FRET_SPAN = 4;

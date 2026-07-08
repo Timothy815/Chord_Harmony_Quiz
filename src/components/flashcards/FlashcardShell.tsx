@@ -98,7 +98,7 @@ function srsFilter<T>(
 }
 
 const ALL_STRING_INDICES = [0, 1, 2, 3, 4, 5];
-const DEFAULT_INTERVALS = [3, 4, 5, 7, 9, 10, 12];
+const DEFAULT_INTERVALS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 const INTERVAL_OPTIONS = [
   { s: 1, n: 'Min 2nd' }, { s: 2, n: 'Maj 2nd' }, { s: 3, n: 'Min 3rd' },
