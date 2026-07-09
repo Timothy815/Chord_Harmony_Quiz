@@ -13,6 +13,7 @@ interface IntervalCardProps {
   card: IntervalCardData;
   level: 1 | 2 | 3;
   flipped: boolean;
+  showSemitones?: boolean;
   onFlip: () => void;
   onCorrect: () => void;
   onIncorrect: () => void;
@@ -71,7 +72,7 @@ function computeWindow(
   };
 }
 
-export function IntervalCard({ card, level, flipped, onFlip, onCorrect, onIncorrect }: IntervalCardProps) {
+export function IntervalCard({ card, level, flipped, showSemitones = false, onFlip, onCorrect, onIncorrect }: IntervalCardProps) {
   const [l1Answer, setL1Answer] = useState<number | null>(null);
   const [l2Selected, setL2Selected] = useState<{ stringIndex: number; fret: number } | null>(null);
   const [userDot, setUserDot] = useState<{ stringIndex: number; fret: number } | null>(null);
@@ -238,6 +239,9 @@ export function IntervalCard({ card, level, flipped, onFlip, onCorrect, onIncorr
               className="py-2 px-3 rounded-lg border text-sm font-medium bg-indigo-50 border-indigo-200 text-indigo-800 hover:bg-indigo-100 transition-colors"
             >
               {opt.name}
+              {showSemitones && (
+                <span className="ml-1 text-xs text-indigo-400 font-normal">({opt.semitones}st)</span>
+              )}
             </button>
           ))}
         </div>

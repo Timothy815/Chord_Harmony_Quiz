@@ -124,6 +124,7 @@ export function FlashcardShell() {
   const [intIntervals, setIntIntervals] = useState<number[]>(DEFAULT_INTERVALS);
   const [intDirection, setIntDirection] = useState<'across' | 'along' | 'both'>('across');
   const [intStrings, setIntStrings] = useState<number[]>(ALL_STRING_INDICES);
+  const [showSemitones, setShowSemitones] = useState(true);
 
   // Session state
   const [noteDeck, setNoteDeck] = useState<NoteCardData[]>([]);
@@ -496,6 +497,16 @@ export function FlashcardShell() {
                   {ALL_STRING_INDICES.map(i => strBtn(intStrings, toggleIntString, i))}
                 </div>
               </div>
+              {intLevel === 1 && (
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                  <input
+                    type="checkbox" checked={showSemitones}
+                    onChange={e => setShowSemitones(e.target.checked)}
+                    className="rounded"
+                  />
+                  Show semitone counts on choices
+                </label>
+              )}
             </>
           )}
           <button
@@ -555,6 +566,7 @@ export function FlashcardShell() {
               card={currentCard as IntervalCardData}
               level={intLevel}
               flipped={flipped}
+              showSemitones={showSemitones}
               onFlip={handleFlip}
               onCorrect={handleAutoCorrect}
               onIncorrect={handleAutoIncorrect}
