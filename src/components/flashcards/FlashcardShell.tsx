@@ -125,6 +125,7 @@ export function FlashcardShell() {
   const [intDirection, setIntDirection] = useState<'across' | 'along' | 'both'>('across');
   const [intStrings, setIntStrings] = useState<number[]>(ALL_STRING_INDICES);
   const [showSemitones, setShowSemitones] = useState(true);
+  const [showSemitoneRef, setShowSemitoneRef] = useState(false);
 
   // Session state
   const [noteDeck, setNoteDeck] = useState<NoteCardData[]>([]);
@@ -515,6 +516,69 @@ export function FlashcardShell() {
           >
             Apply &amp; Restart
           </button>
+        </div>
+      )}
+
+      {/* Semitone reference panel — interval mode only */}
+      {cardMode === 'interval' && (
+        <div className="mb-5">
+          <button
+            onClick={() => setShowSemitoneRef(v => !v)}
+            className="text-xs text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1"
+          >
+            ℹ Semitone reference {showSemitoneRef ? '▲' : '▼'}
+          </button>
+          {showSemitoneRef && (
+            <div className="mt-2 p-4 bg-indigo-50 border border-indigo-100 rounded-lg text-sm space-y-4">
+              {/* Number line */}
+              <div className="overflow-x-auto">
+                <div className="flex min-w-max">
+                  {[
+                    { note: 'C',   pc: 0,  natural: true },
+                    { note: 'C#',  pc: 1,  natural: false },
+                    { note: 'D',   pc: 2,  natural: true },
+                    { note: 'D#',  pc: 3,  natural: false },
+                    { note: 'E',   pc: 4,  natural: true },
+                    { note: 'F',   pc: 5,  natural: true },
+                    { note: 'F#',  pc: 6,  natural: false },
+                    { note: 'G',   pc: 7,  natural: true },
+                    { note: 'G#',  pc: 8,  natural: false },
+                    { note: 'A',   pc: 9,  natural: true },
+                    { note: 'A#',  pc: 10, natural: false },
+                    { note: 'B',   pc: 11, natural: true },
+                  ].map(({ note, pc, natural }) => (
+                    <div
+                      key={pc}
+                      className={`flex flex-col items-center justify-center w-10 py-1.5 border-r border-indigo-200 last:border-r-0 ${
+                        natural ? 'bg-white' : 'bg-indigo-200'
+                      }`}
+                    >
+                      <span className="font-mono font-semibold text-xs text-gray-700">{note}</span>
+                      <span className="font-mono text-lg font-bold text-indigo-700 leading-tight">{pc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Formula */}
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">Formula</p>
+                <p className="font-mono text-indigo-800 bg-white border border-indigo-200 rounded px-3 py-2 inline-block">
+                  (target − root + 12) % 12
+                </p>
+                <p className="text-gray-500 mt-1.5 text-xs">
+                  Example: D# → A = (9 − 3 + 12) % 12 = <strong>6 st</strong> (Tritone)
+                </p>
+              </div>
+
+              {/* Always C=0 */}
+              <p className="text-xs text-gray-500 border-t border-indigo-100 pt-3">
+                <strong>C = 0 in every key and scale.</strong> These are fixed pitch-class labels for
+                the 12 chromatic notes — they never shift. A key signature just tells you which
+                subset of the 12 to focus on; the numbers themselves are absolute.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
