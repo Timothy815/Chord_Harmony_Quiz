@@ -132,6 +132,7 @@ export function FlashcardShell() {
   const [flipped, setFlipped] = useState(false);
   const [correct, setCorrect] = useState(0);
   const [seen, setSeen] = useState(0);
+  const [autoResult, setAutoResult] = useState<'correct' | 'incorrect' | null>(null);
 
   // SRS state
   const storeRef = useRef<SRSStore>({});
@@ -170,6 +171,7 @@ export function FlashcardShell() {
     setFlipped(false);
     setCorrect(0);
     setSeen(0);
+    setAutoResult(null);
   }, [buildAndSetDecks]);
 
   // Restart when mode tab changes
@@ -195,28 +197,16 @@ export function FlashcardShell() {
 
   const handleFlip = () => setFlipped(true);
 
-  const handleGotIt = () => {
-    if (currentCard) {
-      const key = getCardKey(currentCard);
-      const updated = reviewCard(storeRef.current[key], true);
-      storeRef.current = { ...storeRef.current, [key]: updated };
-      saveStore(storeRef.current);
-      setNextDue(nextDueAfterToday(storeRef.current));
-    }
-    setCorrect(c => c + 1);
-    setSeen(s => s + 1);
-    setCurrentIndex(i => i + 1);
-    setFlipped(false);
+  const recordSRS = (wasCorrect: boolean) => {
+    if (!currentCard) return;
+    const key = getCardKey(currentCard);
+    const updated = reviewCard(storeRef.current[key], wasCorrect);
+    storeRef.current = { ...storeRef.current, [key]: updated };
+    saveStore(storeRef.current);
+    setNextDue(nextDueAfterToday(storeRef.current));
   };
 
-  const handleTryAgain = () => {
-    if (currentCard) {
-      const key = getCardKey(currentCard);
-      const updated = reviewCard(storeRef.current[key], false);
-      storeRef.current = { ...storeRef.current, [key]: updated };
-      saveStore(storeRef.current);
-    }
-    setSeen(s => s + 1);
+  const reshuffleCurrentCard = () => {
     if (cardMode === 'note') {
       const nd = [...noteDeck];
       const [card] = nd.splice(currentIndex, 1);
@@ -228,6 +218,42 @@ export function FlashcardShell() {
       id.splice(Math.min(id.length, currentIndex + 3 + Math.floor(Math.random() * 3)), 0, card);
       setIntervalDeck(id);
     }
+  };
+
+  // Auto-scoring: called directly by MC and fretboard-click cards
+  const handleAutoCorrect = () => {
+    recordSRS(true);
+    setCorrect(c => c + 1);
+    setAutoResult('correct');
+  };
+
+  const handleAutoIncorrect = () => {
+    recordSRS(false);
+    reshuffleCurrentCard();
+    setAutoResult('incorrect');
+  };
+
+  // Advance after auto-scored card
+  const handleNext = () => {
+    setSeen(s => s + 1);
+    if (autoResult === 'correct') setCurrentIndex(i => i + 1);
+    setFlipped(false);
+    setAutoResult(null);
+  };
+
+  // Manual scoring: reveal-only note cards only
+  const handleGotIt = () => {
+    recordSRS(true);
+    setCorrect(c => c + 1);
+    setSeen(s => s + 1);
+    setCurrentIndex(i => i + 1);
+    setFlipped(false);
+  };
+
+  const handleTryAgain = () => {
+    recordSRS(false);
+    setSeen(s => s + 1);
+    reshuffleCurrentCard();
     setFlipped(false);
   };
 
@@ -520,8 +546,8 @@ export function FlashcardShell() {
               flipped={flipped}
               multipleChoice={multipleChoice}
               onFlip={handleFlip}
-              onCorrect={() => {}}
-              onIncorrect={() => {}}
+              onCorrect={multipleChoice ? handleAutoCorrect : () => {}}
+              onIncorrect={multipleChoice ? handleAutoIncorrect : () => {}}
             />
           ) : (
             <IntervalCard
@@ -530,8 +556,8 @@ export function FlashcardShell() {
               level={intLevel}
               flipped={flipped}
               onFlip={handleFlip}
-              onCorrect={() => {}}
-              onIncorrect={() => {}}
+              onCorrect={handleAutoCorrect}
+              onIncorrect={handleAutoIncorrect}
             />
           )}
           {flipped && (
@@ -545,20 +571,35 @@ export function FlashcardShell() {
                   {cardRec.repetitions >= 5 ? ' ★' : cardRec.repetitions >= 3 ? ' ◆' : ''}
                 </p>
               )}
-              <div className="flex justify-center gap-4 mt-3">
-                <button
-                  onClick={handleTryAgain}
-                  className="px-6 py-2 bg-red-50 border border-red-200 text-red-700 rounded-lg font-medium hover:bg-red-100 transition-colors"
-                >
-                  Try Again
-                </button>
-                <button
-                  onClick={handleGotIt}
-                  className="px-6 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg font-medium hover:bg-green-100 transition-colors"
-                >
-                  Got It ✓
-                </button>
-              </div>
+              {autoResult !== null ? (
+                <div className="flex justify-center mt-3">
+                  <button
+                    onClick={handleNext}
+                    className={`px-8 py-2 rounded-lg font-medium transition-colors ${
+                      autoResult === 'correct'
+                        ? 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
+                        : 'bg-red-50 border border-red-200 text-red-700 hover:bg-red-100'
+                    }`}
+                  >
+                    Next →
+                  </button>
+                </div>
+              ) : (
+                <div className="flex justify-center gap-4 mt-3">
+                  <button
+                    onClick={handleTryAgain}
+                    className="px-6 py-2 bg-red-50 border border-red-200 text-red-700 rounded-lg font-medium hover:bg-red-100 transition-colors"
+                  >
+                    Try Again
+                  </button>
+                  <button
+                    onClick={handleGotIt}
+                    className="px-6 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg font-medium hover:bg-green-100 transition-colors"
+                  >
+                    Got It ✓
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
