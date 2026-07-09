@@ -86,7 +86,9 @@ export function NoteCard({ card, flipped, multipleChoice, onFlip, onCorrect, onI
       {flipped && (
         <div className="flex flex-col items-center p-8">
           {selectedOption && selectedOption !== note && (
-            <p className="text-red-500 text-sm mb-2">You picked {selectedOption}</p>
+            <p className="text-red-500 text-sm mb-3">
+              ✗ You picked <strong>{selectedOption}</strong> — correct: <strong>{note}</strong>
+            </p>
           )}
           <p className="text-7xl font-bold text-indigo-600 mb-1">{note}</p>
           <p className="text-gray-400 text-lg mb-2">{note}{octave}</p>

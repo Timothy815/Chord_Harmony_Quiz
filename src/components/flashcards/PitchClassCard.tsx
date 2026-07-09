@@ -81,7 +81,9 @@ export function PitchClassCard({
       {flipped && (
         <div className="flex flex-col items-center p-8">
           {selected && selected !== backLabel && (
-            <p className="text-red-500 text-sm mb-2">You picked {selected}</p>
+            <p className="text-red-500 text-sm mb-3">
+              ✗ You picked <strong>{selected}</strong> — correct: <strong>{backLabel}</strong>
+            </p>
           )}
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">{backSub}</p>
           <p className="text-8xl font-bold text-indigo-600 font-mono">{backLabel}</p>
