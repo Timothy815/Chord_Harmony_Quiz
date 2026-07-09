@@ -9,6 +9,7 @@ interface PitchClassCardProps {
   card: PitchClassCardData;
   flipped: boolean;
   multipleChoice: boolean;
+  fullChoices?: boolean;
   onFlip: () => void;
   onCorrect: () => void;
   onIncorrect: () => void;
@@ -17,7 +18,7 @@ interface PitchClassCardProps {
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
 export function PitchClassCard({
-  card, flipped, multipleChoice, onFlip, onCorrect, onIncorrect,
+  card, flipped, multipleChoice, fullChoices = false, onFlip, onCorrect, onIncorrect,
 }: PitchClassCardProps) {
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -28,6 +29,11 @@ export function PitchClassCard({
   const backSub    = card.direction === 'note-to-number' ? 'Semitone #' : 'Note name';
 
   const options = useMemo(() => {
+    if (fullChoices) {
+      return card.direction === 'note-to-number'
+        ? Array.from({ length: 12 }, (_, i) => String(i)).sort(() => Math.random() - 0.5)
+        : [...NOTE_NAMES].sort(() => Math.random() - 0.5);
+    }
     if (card.direction === 'note-to-number') {
       const wrongs = Array.from({ length: 12 }, (_, i) => i)
         .filter(i => i !== card.pitchClass)
@@ -42,7 +48,7 @@ export function PitchClassCard({
         .slice(0, 3);
       return [noteName, ...wrongs].sort(() => Math.random() - 0.5);
     }
-  }, [card]);
+  }, [card, fullChoices]);
 
   const handlePick = (opt: string) => {
     setSelected(opt);
@@ -57,12 +63,12 @@ export function PitchClassCard({
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">{frontSub}</p>
           <p className="text-8xl font-bold text-indigo-600 font-mono mb-10">{frontLabel}</p>
           {multipleChoice ? (
-            <div className="grid grid-cols-2 gap-3 w-full max-w-xs">
+            <div className={`grid gap-2 w-full ${fullChoices ? 'grid-cols-4 max-w-sm' : 'grid-cols-2 max-w-xs'}`}>
               {options.map(opt => (
                 <button
                   key={opt}
                   onClick={() => handlePick(opt)}
-                  className="py-3 px-4 rounded-lg border text-sm font-semibold transition-colors bg-indigo-50 border-indigo-200 text-indigo-800 hover:bg-indigo-100 active:bg-indigo-200"
+                  className="py-2.5 px-2 rounded-lg border text-sm font-semibold transition-colors bg-indigo-50 border-indigo-200 text-indigo-800 hover:bg-indigo-100 active:bg-indigo-200"
                 >
                   {opt}
                 </button>

@@ -131,6 +131,7 @@ export function FlashcardShell() {
   // Pitch-class filters
   const [pcDirection, setPcDirection] = useState<'note-to-number' | 'number-to-note' | 'both'>('both');
   const [pcMultipleChoice, setPcMultipleChoice] = useState(true);
+  const [pcFullChoices, setPcFullChoices] = useState(false);
 
   // Session state
   const [noteDeck, setNoteDeck] = useState<NoteCardData[]>([]);
@@ -400,6 +401,16 @@ export function FlashcardShell() {
                 />
                 Multiple choice mode
               </label>
+              {pcMultipleChoice && (
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer ml-4">
+                  <input
+                    type="checkbox" checked={pcFullChoices}
+                    onChange={e => setPcFullChoices(e.target.checked)}
+                    className="rounded"
+                  />
+                  Show all 12 choices (harder)
+                </label>
+              )}
             </>
           ) : cardMode === 'note' ? (
             <>
@@ -698,6 +709,7 @@ export function FlashcardShell() {
               card={currentCard as PitchClassCardData}
               flipped={flipped}
               multipleChoice={pcMultipleChoice}
+              fullChoices={pcFullChoices}
               onFlip={handleFlip}
               onCorrect={pcMultipleChoice ? handleAutoCorrect : () => {}}
               onIncorrect={pcMultipleChoice ? handleAutoIncorrect : () => {}}
