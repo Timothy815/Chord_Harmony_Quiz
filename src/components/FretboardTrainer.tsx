@@ -9,7 +9,7 @@ import { TrainerFretboard } from './TrainerFretboard';
 import { NoteToken } from './NoteToken';
 import { playMidiNote } from '../lib/audio';
 import {
-  SRSStore, loadStore, saveStore, trainerKey, isDue, reviewCard,
+  SRSStore, loadStore, saveStore, trainerKey, isDue, reviewTrainerCard,
 } from '../lib/srs';
 
 function shuffle<T>(arr: T[]): T[] {
@@ -95,7 +95,6 @@ export function FretboardTrainer() {
   const [chordTypes, setChordTypes] = useState<string[]>(['Major', 'Minor']);
   const [shapeNames, setShapeNames] = useState<string[]>(ALL_SHAPE_NAMES);
   const [deck, setDeck] = useState<TrainerCombo[]>([]);
-  const [deckIndex, setDeckIndex] = useState(0);
   const [roundId, setRoundId] = useState(0);
   const [currentCombo, setCurrentCombo] = useState<TrainerCombo | null>(null);
   const [filteredCells, setFilteredCells] = useState<ScaleBoxCell[]>([]);
@@ -107,8 +106,12 @@ export function FretboardTrainer() {
   const [noValidCombos, setNoValidCombos] = useState(false);
   const [roundsCompleted, setRoundsCompleted] = useState(0);
   const [roundsClean, setRoundsClean] = useState(0);
+  const [sessionTotal, setSessionTotal] = useState(0);
+  const [sessionComplete, setSessionComplete] = useState(false);
+  const [lastResult, setLastResult] = useState<string | null>(null);
 
   const storeRef = useRef<SRSStore>({});
+  const roundStartedAtRef = useRef(0);
   const cellRectsRef = useRef<Map<string, DOMRect>>(new Map());
   const missFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -120,21 +123,11 @@ export function FretboardTrainer() {
     }
   }, []);
 
-  const loadRound = useCallback((pool: TrainerCombo[], startIndex: number) => {
-    if (pool.length === 0) {
-      setCurrentCombo(null);
-      setFilteredCells([]);
-      setNoteTokens([]);
-      setFilledKeys(new Set());
-      setNoValidCombos(true);
-      return;
-    }
+  const loadRound = useCallback((queue: TrainerCombo[]) => {
+    const remaining = [...queue];
 
-    let index = startIndex;
-    let attempts = 0;
-
-    while (attempts < pool.length) {
-      const combo = pool[index % pool.length];
+    while (remaining.length > 0) {
+      const combo = remaining.shift()!;
       const tones = tonesForCombo(combo);
       const cells = generateScaleBox(combo.root, tones, combo.shape);
 
@@ -147,21 +140,21 @@ export function FretboardTrainer() {
         setMissCount(0);
         setMissedKey(null);
         setSelectedPitchClass(null);
-        setDeckIndex((index % pool.length) + 1);
+        setDeck(remaining);
         setRoundId((value) => value + 1);
         setNoValidCombos(false);
+        setSessionComplete(false);
+        roundStartedAtRef.current = performance.now();
         return;
       }
-
-      index++;
-      attempts++;
     }
 
     setCurrentCombo(null);
     setFilteredCells([]);
     setNoteTokens([]);
     setFilledKeys(new Set());
-    setNoValidCombos(true);
+    setDeck([]);
+    setSessionComplete(true);
   }, []);
 
   const restart = useCallback(() => {
@@ -171,6 +164,8 @@ export function FretboardTrainer() {
     const pool = buildComboPool(roots, contentTypes, scaleTypes, chordTypes, shapeNames);
     setRoundsCompleted(0);
     setRoundsClean(0);
+    setSessionComplete(false);
+    setLastResult(null);
 
     if (pool.length === 0) {
       setDeck([]);
@@ -179,6 +174,7 @@ export function FretboardTrainer() {
       setNoteTokens([]);
       setFilledKeys(new Set());
       setNoValidCombos(true);
+      setSessionTotal(0);
       return;
     }
 
@@ -199,8 +195,8 @@ export function FretboardTrainer() {
     }
 
     const nextDeck = [...shuffle(due), ...shuffle(fresh), ...shuffle(scheduled)];
-    setDeck(nextDeck);
-    loadRound(nextDeck, 0);
+    setSessionTotal(nextDeck.length);
+    loadRound(nextDeck);
   }, [roots, contentTypes, scaleTypes, chordTypes, shapeNames, loadRound]);
 
   useEffect(() => {
@@ -231,15 +227,30 @@ export function FretboardTrainer() {
       currentCombo.typeName,
       currentCombo.shape.name,
     );
-    const updated = reviewCard(storeRef.current[key], finalMissCount === 0);
-    storeRef.current = { ...storeRef.current, [key]: updated };
+    const wasClean = finalMissCount === 0;
+    const elapsedMs = Math.max(1, Math.round(performance.now() - roundStartedAtRef.current));
+    const review = reviewTrainerCard(storeRef.current[key], wasClean, elapsedMs);
+    const previousBest = review.previousBestMs;
+    storeRef.current = { ...storeRef.current, [key]: review.record };
     saveStore(storeRef.current);
     setRoundsCompleted((count) => count + 1);
-    if (finalMissCount === 0) {
+    if (wasClean) {
       setRoundsClean((count) => count + 1);
     }
-    loadRound(deck, deckIndex);
-  }, [currentCombo, deck, deckIndex, loadRound]);
+
+    const seconds = (elapsedMs / 1000).toFixed(1);
+    if (!wasClean) {
+      setLastResult(`${currentCombo.shape.name}: ${seconds}s · requeued after ${finalMissCount} ${finalMissCount === 1 ? 'miss' : 'misses'}`);
+    } else if (previousBest === undefined) {
+      setLastResult(`${currentCombo.shape.name}: clean in ${seconds}s · first recorded time`);
+    } else if (review.improved) {
+      setLastResult(`${currentCombo.shape.name}: clean in ${seconds}s · ${((previousBest - elapsedMs) / 1000).toFixed(1)}s faster`);
+    } else {
+      setLastResult(`${currentCombo.shape.name}: clean in ${seconds}s · best ${(previousBest / 1000).toFixed(1)}s`);
+    }
+
+    loadRound(wasClean ? deck : [...deck, currentCombo]);
+  }, [currentCombo, deck, loadRound]);
 
   const attemptPlacement = useCallback((pitchClass: number, targetKey: string) => {
     const cell = filteredCells.find((candidate) => cellKey(candidate.stringIndex, candidate.fret) === targetKey);
@@ -309,7 +320,7 @@ export function FretboardTrainer() {
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <h2 className="text-lg font-semibold tracking-tight text-indigo-700">Fretboard Trainer</h2>
         <div className="flex items-center gap-3 text-sm">
-          <span className="text-gray-500 font-medium">{roundsClean} / {roundsCompleted} clean</span>
+          <span className="text-gray-500 font-medium">{roundsClean} / {sessionTotal} mastered · {roundsCompleted} attempts</span>
           <button
             onClick={() => setShowFilters((value) => !value)}
             className="text-indigo-600 hover:text-indigo-800 font-medium"
@@ -432,8 +443,25 @@ export function FretboardTrainer() {
         </div>
       )}
 
+      {lastResult && !noValidCombos && (
+        <div className="mb-5 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-center text-sm font-medium text-indigo-800">
+          {lastResult}
+        </div>
+      )}
+
       {noValidCombos ? (
         <div className="text-center py-16 text-gray-400">No cards match your filters.</div>
+      ) : sessionComplete ? (
+        <div className="text-center py-16">
+          <p className="text-2xl font-bold text-green-700">Practice set complete</p>
+          <p className="mt-2 text-gray-500">All {sessionTotal} selected shapes were completed cleanly.</p>
+          <button
+            onClick={restart}
+            className="mt-6 px-5 py-2 bg-indigo-600 text-white rounded font-medium hover:bg-indigo-700 transition-colors"
+          >
+            Practice Again
+          </button>
+        </div>
       ) : currentCombo ? (
         <div>
           <div className="text-center mb-4">

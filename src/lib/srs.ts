@@ -5,6 +5,7 @@ export interface CardRecord {
   dueDate: string;       // 'YYYY-MM-DD'
   totalSeen: number;
   totalCorrect: number;
+  bestTimeMs?: number;   // fastest clean trainer completion
 }
 
 export type SRSStore = Record<string, CardRecord>;
@@ -106,6 +107,7 @@ export function reviewCard(existing: CardRecord | undefined, correct: boolean): 
       dueDate: addDays(today, newInterval),
       totalSeen,
       totalCorrect,
+      bestTimeMs: base.bestTimeMs,
     };
   } else {
     return {
@@ -115,6 +117,31 @@ export function reviewCard(existing: CardRecord | undefined, correct: boolean): 
       dueDate: today,
       totalSeen,
       totalCorrect,
+      bestTimeMs: base.bestTimeMs,
     };
   }
+}
+
+export interface TrainerReview {
+  record: CardRecord;
+  previousBestMs?: number;
+  improved: boolean;
+}
+
+export function reviewTrainerCard(
+  existing: CardRecord | undefined,
+  clean: boolean,
+  elapsedMs: number,
+): TrainerReview {
+  const previousBestMs = existing?.bestTimeMs;
+  const reviewed = reviewCard(existing, clean);
+  const improved = clean && previousBestMs !== undefined && elapsedMs < previousBestMs;
+
+  return {
+    record: clean
+      ? { ...reviewed, bestTimeMs: Math.min(previousBestMs ?? elapsedMs, elapsedMs) }
+      : reviewed,
+    previousBestMs,
+    improved,
+  };
 }
