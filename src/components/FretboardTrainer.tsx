@@ -115,6 +115,14 @@ export function FretboardTrainer() {
   const cellElementsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const missFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const clearFilters = () => {
+    setRoots([]);
+    setContentTypes([]);
+    setScaleTypes([]);
+    setChordTypes([]);
+    setShapeNames([]);
+  };
+
   const registerCellElement = useCallback((key: string, element: HTMLDivElement | null) => {
     if (element) {
       cellElementsRef.current.set(key, element);
@@ -336,6 +344,16 @@ export function FretboardTrainer() {
 
       {showFilters && (
         <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-gray-700">Filter Selection</p>
+            <button
+              onClick={clearFilters}
+              className="px-3 py-1.5 rounded border border-red-200 bg-white text-sm font-medium text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors"
+            >
+              Clear All
+            </button>
+          </div>
+
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Roots</p>
             <div className="flex flex-wrap gap-2">
