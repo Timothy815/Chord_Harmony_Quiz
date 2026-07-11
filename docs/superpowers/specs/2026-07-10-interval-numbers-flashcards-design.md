@@ -14,26 +14,9 @@ Architecturally this mode is a near-exact sibling of the existing "Note Numbers"
 
 ## 1. Shared interval name data
 
-`INTERVAL_OPTIONS` (currently a private const in `FlashcardShell.tsx`: `{ s: number, n: string }[]`, covering semitones 1–12, Min 2nd through Octave — no Unison) is extracted into `src/lib/musicTheory.ts` as an exported constant:
+`src/lib/musicTheory.ts` already exports `INTERVAL_NAMES: Record<number, string>` (keys 0–12, `0: 'Root'` through `12: 'Octave'`), consumed today by `IntervalCard.tsx` and `TheoryReference.tsx`. This mode reuses that existing constant directly for label lookups (`INTERVAL_NAMES[semitones]`) rather than introducing a second, differently-shaped constant of the same name.
 
-```ts
-export const INTERVAL_NAMES: { semitones: number; name: string }[] = [
-  { semitones: 1,  name: 'Min 2nd' },
-  { semitones: 2,  name: 'Maj 2nd' },
-  { semitones: 3,  name: 'Min 3rd' },
-  { semitones: 4,  name: 'Maj 3rd' },
-  { semitones: 5,  name: 'Perf 4th' },
-  { semitones: 6,  name: 'Tritone' },
-  { semitones: 7,  name: 'Perf 5th' },
-  { semitones: 8,  name: 'Aug 5th' },
-  { semitones: 9,  name: 'Maj 6th' },
-  { semitones: 10, name: 'Min 7th' },
-  { semitones: 11, name: 'Maj 7th' },
-  { semitones: 12, name: 'Octave' },
-];
-```
-
-`FlashcardShell.tsx`'s existing interval filter panel (used by the fretboard-based Interval Cards) is updated to read from this shared constant instead of its own local copy, so interval naming stays in sync everywhere. No Unison (0 semitones) option is added — this mode covers the same 1–12 range as the rest of the app.
+`FlashcardShell.tsx`'s local `INTERVAL_OPTIONS` (`{ s: number, n: string }[]`, semitones 1–12, used by the fretboard-based Interval Cards filter panel) is left as-is — it's a small, already-working local list and duplicating vs. deriving it from `INTERVAL_NAMES` is a wash either way, so no change there. The new mode's own candidate list is generated inline as `[1..12]` mapped through `INTERVAL_NAMES`. No Unison (0 semitones) option is added — this mode covers the same 1–12 range as the rest of the app.
 
 ---
 
