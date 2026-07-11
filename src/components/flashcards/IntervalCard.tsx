@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { GUITAR_TUNING, STRING_NAMES, INTERVAL_NAMES } from '../../lib/musicTheory';
 import { MiniFretboard, FretDot } from './MiniFretboard';
+import { playInterval } from '../../lib/audio';
 
 export interface IntervalCardData {
   rootStringIndex: number;
@@ -145,9 +146,14 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, onFl
     }
   }
 
+  const rootMidi = GUITAR_TUNING[card.rootStringIndex] + card.rootFret;
+  const targetMidi = GUITAR_TUNING[target.stringIndex] + target.fret;
+  const playCurrentInterval = () => { void playInterval(rootMidi, targetMidi); };
+
   const handleL1 = (semitones: number) => {
     setL1Answer(semitones);
     onFlip();
+    playCurrentInterval();
     if (semitones === card.intervalSemitones) onCorrect(); else onIncorrect();
   };
 
@@ -157,6 +163,7 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, onFl
     if (!candidate) return;
     setL2Selected({ stringIndex: s, fret: f });
     onFlip();
+    playCurrentInterval();
     if (candidate.isCorrect) onCorrect(); else onIncorrect();
   };
 
@@ -169,6 +176,7 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, onFl
     if (!userDot) return;
     const correct = userDot.stringIndex === target.stringIndex && userDot.fret === target.fret;
     onFlip();
+    playCurrentInterval();
     if (correct) onCorrect(); else onIncorrect();
   };
 
@@ -178,6 +186,8 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, onFl
   const l3IsCorrect = userDot
     ? userDot.stringIndex === target.stringIndex && userDot.fret === target.fret
     : false;
+
+  const answered = level === 1 ? flipped : level === 2 ? l2Selected !== null : flipped;
 
   return (
     <div className="bg-white rounded-xl border border-indigo-100 shadow-md p-6">
@@ -255,6 +265,19 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, onFl
             className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
           >
             Reveal
+          </button>
+        </div>
+      )}
+
+      {/* Replay interval sound */}
+      {answered && (
+        <div className="flex justify-center mb-2">
+          <button
+            onClick={playCurrentInterval}
+            aria-label="Replay interval"
+            className="w-9 h-9 flex items-center justify-center rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+          >
+            🔊
           </button>
         </div>
       )}

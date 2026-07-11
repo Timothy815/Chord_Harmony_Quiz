@@ -70,4 +70,12 @@ export async function playStrum(frequencies: number[], _duration = 2.0, stagger 
   });
 }
 
+// Plays two notes one after another (root, then target) so the interval's sound can be heard
+export async function playInterval(midiA: number, midiB: number, gapMs = 450) {
+  await resume();
+  const now = Tone.now();
+  sampler!.triggerAttack(midiToToneNote(midiA), now, 0.9);
+  sampler!.triggerAttack(midiToToneNote(midiB), now + gapMs / 1000, 0.9);
+}
+
 export const noteToFreq = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
