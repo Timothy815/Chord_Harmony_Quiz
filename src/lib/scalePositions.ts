@@ -9,27 +9,27 @@ export interface CagedAnchor {
   stringWindows?: Array<{ start: number; end: number } | null>;
 }
 
-// Use the shape letter's pitch class at shift=0 so C- and G-shapes transpose correctly.
+// Anchors use the open-string pitch class of the string that carries the shape's root.
 export const CAGED_ANCHORS: CagedAnchor[] = [
   {
     name: 'C-Shape',
     rootString: 4,
-    anchorPitchClass: 0,
+    anchorPitchClass: 9,
     startOffset: 2,
     endOffset: 2,
-    // Nut-position C-shapes need per-string bounds so the position keeps its real contour
-    // instead of collapsing into a tiny 0-2 rectangle when shifted against fret 0.
+    // Relative to the A-string root. For C, this produces the familiar open-position
+    // contour: E 1/3, B 1/4, G 0/3, D 1/3, A 1/3, E 1/3.
     stringWindows: [
-      { start: 1, end: 1 }, // high e
-      { start: 1, end: 4 }, // B
-      { start: 0, end: 3 }, // G
-      { start: 1, end: 3 }, // D
-      { start: 1, end: 3 }, // A
-      { start: 1, end: 1 }, // low E
+      { start: -2, end: 0 }, // high e
+      { start: -2, end: 1 }, // B
+      { start: -3, end: 0 }, // G
+      { start: -2, end: 0 }, // D
+      { start: -2, end: 0 }, // A
+      { start: -2, end: 0 }, // low E
     ],
   },
   { name: 'A-Shape', rootString: 4, anchorPitchClass: 9, startOffset: 2, endOffset: 2 },
-  { name: 'G-Shape', rootString: 5, anchorPitchClass: 7, startOffset: 2, endOffset: 2 },
+  { name: 'G-Shape', rootString: 5, anchorPitchClass: 4, startOffset: 2, endOffset: 2 },
   { name: 'E-Shape', rootString: 5, anchorPitchClass: 4, startOffset: 2, endOffset: 2 },
   { name: 'D-Shape', rootString: 3, anchorPitchClass: 2, startOffset: 2, endOffset: 2 },
 ];
