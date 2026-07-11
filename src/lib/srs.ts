@@ -53,6 +53,10 @@ export function pitchClassKey(pc: number, direction: string): string {
   return `pc:${pc}:${direction}`;
 }
 
+export function intervalNumberKey(semitones: number, direction: string): string {
+  return `interval-number:${semitones}:${direction}`;
+}
+
 export function isDue(record: CardRecord | undefined): boolean {
   return !record || record.dueDate <= todayStr();
 }
