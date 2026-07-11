@@ -60,3 +60,27 @@ The app has `MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API` declared in `metadata.json
 - `CircleOfFifths` — purely presentational SVG-based component; calls `onNotesSelected` on click
 
 **Path alias:** `@/` resolves to the project root (not `src/`), so imports like `@/src/lib/...` are valid but the convention in existing code is relative imports within `src/`.
+
+## Flashcard System (`src/components/flashcards/`)
+
+Spaced-repetition drill system with three card modes, all sharing the same SRS engine.
+
+**`src/lib/srs.ts`** — SM-2 spaced repetition engine persisted to `localStorage` under key `harmony-hub-srs-v1`. Key exports: `loadStore()`, `saveStore()`, `reviewCard(existing, correct)`, `isDue(record)`, `noteKey()`, `intervalKey()`, `pitchClassKey()`.
+
+**`FlashcardShell.tsx`** — Top-level container. Owns all session state, SRS store ref, deck generation, and scoring logic. Three card modes selectable via tabs:
+
+- **Note Cards** — identifies note name at a given string + fret. Supports multiple choice (auto-scores) and reveal-only (manual Got It / Try Again).
+- **Interval Cards** — three difficulty levels: Identify (Level 1 MC), Locate (Level 2 fretboard tap), Produce (Level 3 free-place + Reveal). All auto-score on selection. Includes a collapsible semitone reference panel with the formula `(target − root + 12) % 12`.
+- **Note Numbers** — drills pitch-class number ↔ note name associations (C=0 … B=11). Supports 4-choice MC or full 12-choice grid (harder, no process-of-elimination).
+
+**Auto-scoring pattern:** MC and fretboard-tap cards call `onCorrect`/`onIncorrect` immediately on selection. `FlashcardShell` wires these to `handleAutoCorrect`/`handleAutoIncorrect` which save SRS and set `autoResult` state. A single **Next →** button (green/red) then advances the session. Reveal-only note cards use manual Got It / Try Again instead. Wrong answers reshuffle the card 3–5 positions ahead in the deck.
+
+**Card key stability:** Cards use `key={\`${currentIndex}-${seen}\`}` — `seen` increments on every Next/Got It/Try Again so the component always remounts fresh on advance, preventing stale internal state after Try Again.
+
+**`MiniFretboard.tsx`** — Full 6-string fretboard display (frets 0–12) used by interval cards. Dot types: `root` (indigo ①), `interval` (amber), `candidate` (clickable outline), `user` (green), `wrong` (red). Open-string dots render in the string-label column left of the nut; fret 0 is never a grid column when `showNut = true`.
+
+**`IntervalCard.tsx`** — `ALL_INTERVAL_OPTIONS` covers all 12 semitones (m2 through Octave). `findTarget()` searches across/along strings within `MAX_FRET_SPAN = 4`. Root dot always visible at all three levels so learners see the starting position. `showSemitones` prop adds `(Nst)` hint to Level 1 MC buttons.
+
+**`PitchClassCard.tsx`** — Front shows note name or number; back shows the paired value. `fullChoices` prop switches from 4-option to all-12 shuffled grid (4×3 layout).
+
+**Default interval set:** All 12 semitones (1–12) enabled. Direction defaults to `across`. Level 1 semitone hints enabled by default.
