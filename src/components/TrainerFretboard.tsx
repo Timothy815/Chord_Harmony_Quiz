@@ -25,6 +25,7 @@ export function TrainerFretboard({
   const fretCount = endFret - startFret + 1;
   const frets = Array.from({ length: fretCount }, (_, index) => startFret + index);
   const registeredKeys = useRef<Set<string>>(new Set());
+  const markers = [3, 5, 7, 9, 12, 15, 17];
 
   useEffect(() => {
     return () => {
@@ -46,6 +47,24 @@ export function TrainerFretboard({
     <div className="w-full max-w-3xl mx-auto overflow-x-auto pb-4 custom-scrollbar">
       <div className="relative flex bg-amber-900 rounded-sm p-1 shadow-xl" style={{ minWidth: `${fretCount * 64}px` }}>
         <div className="flex-1 relative flex flex-col justify-between h-48 select-none bg-[#3e2723]">
+          <div className="absolute inset-0 pointer-events-none flex">
+            {frets.map((fret) => (
+              <div key={fret} className="flex-1 h-full flex items-center justify-center relative border-r border-black/40">
+                {markers.includes(fret) && (
+                  <div
+                    className="absolute w-5 h-5 rounded-full bg-white/20 shadow-inner z-0"
+                    style={{ top: fret === 12 ? '20%' : '50%', transform: 'translateY(-50%)' }}
+                  />
+                )}
+                {fret === 12 && (
+                  <div
+                    className="absolute w-5 h-5 rounded-full bg-white/20 shadow-inner z-0"
+                    style={{ top: '80%', transform: 'translateY(-50%)' }}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
           {GUITAR_TUNING.map((stringBaseMidi, stringIndex) => (
             <div key={stringIndex} className="relative flex-1 flex items-center border-b border-black/30">
               <div
