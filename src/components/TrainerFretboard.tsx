@@ -9,7 +9,7 @@ interface TrainerFretboardProps {
   filledKeys: Set<string>;
   missedKey: string | null;
   onCellClick: (cell: ScaleBoxCell) => void;
-  registerCellRect: (key: string, rect: DOMRect | null) => void;
+  registerCellElement: (key: string, element: HTMLDivElement | null) => void;
 }
 
 export function TrainerFretboard({
@@ -19,7 +19,7 @@ export function TrainerFretboard({
   filledKeys,
   missedKey,
   onCellClick,
-  registerCellRect,
+  registerCellElement,
 }: TrainerFretboardProps) {
   const cellsByKey = new Map(cells.map((cell) => [cellKey(cell.stringIndex, cell.fret), cell]));
   const fretCount = endFret - startFret + 1;
@@ -29,17 +29,17 @@ export function TrainerFretboard({
 
   useEffect(() => {
     return () => {
-      registeredKeys.current.forEach((key) => registerCellRect(key, null));
+      registeredKeys.current.forEach((key) => registerCellElement(key, null));
     };
-  }, [registerCellRect]);
+  }, [registerCellElement]);
 
   const setCellRef = (key: string, hasCell: boolean, el: HTMLDivElement | null) => {
     if (hasCell && el) {
       registeredKeys.current.add(key);
-      registerCellRect(key, el.getBoundingClientRect());
+      registerCellElement(key, el);
     } else if (registeredKeys.current.has(key)) {
       registeredKeys.current.delete(key);
-      registerCellRect(key, null);
+      registerCellElement(key, null);
     }
   };
 

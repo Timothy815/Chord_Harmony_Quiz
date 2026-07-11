@@ -112,14 +112,14 @@ export function FretboardTrainer() {
 
   const storeRef = useRef<SRSStore>({});
   const roundStartedAtRef = useRef(0);
-  const cellRectsRef = useRef<Map<string, DOMRect>>(new Map());
+  const cellElementsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const missFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const registerCellRect = useCallback((key: string, rect: DOMRect | null) => {
-    if (rect) {
-      cellRectsRef.current.set(key, rect);
+  const registerCellElement = useCallback((key: string, element: HTMLDivElement | null) => {
+    if (element) {
+      cellElementsRef.current.set(key, element);
     } else {
-      cellRectsRef.current.delete(key);
+      cellElementsRef.current.delete(key);
     }
   }, []);
 
@@ -279,7 +279,8 @@ export function FretboardTrainer() {
     let nearestKey: string | null = null;
     let nearestDistance = Infinity;
 
-    cellRectsRef.current.forEach((rect, key) => {
+    cellElementsRef.current.forEach((element, key) => {
+      const rect = element.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
       const distance = Math.hypot(point.x - centerX, point.y - centerY);
@@ -477,7 +478,7 @@ export function FretboardTrainer() {
             filledKeys={filledKeys}
             missedKey={missedKey}
             onCellClick={handleCellClick}
-            registerCellRect={registerCellRect}
+            registerCellElement={registerCellElement}
           />
 
           <div className="flex flex-wrap justify-center gap-3 mt-6">
