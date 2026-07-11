@@ -69,7 +69,11 @@ export function TrainerFretboard({
             <div key={stringIndex} className="relative flex-1 flex items-center border-b border-black/30">
               <div
                 className="absolute w-full h-[2px] bg-gradient-to-b from-gray-300 to-gray-500 shadow-sm z-10 pointer-events-none"
-                style={{ height: `${Math.max(1, (6 - stringIndex) * 0.5)}px` }}
+                style={{
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  height: `${Math.max(1, (stringIndex + 1) * 0.5)}px`,
+                }}
               />
               {frets.map((fret) => {
                 const key = cellKey(stringIndex, fret);
