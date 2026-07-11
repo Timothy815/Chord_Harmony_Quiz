@@ -337,6 +337,11 @@ export function FlashcardShell() {
     if (next.length > 0) setIntIntervals(next);
   };
 
+  const clearIntervalFilters = () => {
+    setIntIntervals([]);
+    setIntStrings([]);
+  };
+
   const isDone = deck.length > 0 && currentIndex >= deck.length;
   const currentCard = deck[currentIndex];
 
@@ -544,6 +549,16 @@ export function FlashcardShell() {
             </>
           ) : cardMode === 'interval' ? (
             <>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-gray-700">Filter Selection</p>
+                <button
+                  onClick={clearIntervalFilters}
+                  className="px-3 py-1.5 rounded border border-red-200 bg-white text-sm font-medium text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors"
+                >
+                  Clear All
+                </button>
+              </div>
+
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Difficulty</p>
                 <div className="flex gap-2">
