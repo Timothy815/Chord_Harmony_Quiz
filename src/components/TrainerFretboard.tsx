@@ -1,0 +1,102 @@
+import React, { useEffect, useRef } from 'react';
+import { GUITAR_TUNING, midiToNoteString } from '../lib/musicTheory';
+import { ScaleBoxCell, cellKey } from '../lib/scalePositions';
+
+interface TrainerFretboardProps {
+  cells: ScaleBoxCell[];
+  startFret: number;
+  endFret: number;
+  filledKeys: Set<string>;
+  missedKey: string | null;
+  onCellClick: (cell: ScaleBoxCell) => void;
+  registerCellRect: (key: string, rect: DOMRect | null) => void;
+}
+
+export function TrainerFretboard({
+  cells,
+  startFret,
+  endFret,
+  filledKeys,
+  missedKey,
+  onCellClick,
+  registerCellRect,
+}: TrainerFretboardProps) {
+  const cellsByKey = new Map(cells.map((cell) => [cellKey(cell.stringIndex, cell.fret), cell]));
+  const fretCount = endFret - startFret + 1;
+  const frets = Array.from({ length: fretCount }, (_, index) => startFret + index);
+  const registeredKeys = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    return () => {
+      registeredKeys.current.forEach((key) => registerCellRect(key, null));
+    };
+  }, [registerCellRect]);
+
+  const setCellRef = (key: string, hasCell: boolean, el: HTMLDivElement | null) => {
+    if (hasCell && el) {
+      registeredKeys.current.add(key);
+      registerCellRect(key, el.getBoundingClientRect());
+    } else if (registeredKeys.current.has(key)) {
+      registeredKeys.current.delete(key);
+      registerCellRect(key, null);
+    }
+  };
+
+  return (
+    <div className="w-full max-w-3xl mx-auto overflow-x-auto pb-4 custom-scrollbar">
+      <div className="relative flex bg-amber-900 rounded-sm p-1 shadow-xl" style={{ minWidth: `${fretCount * 64}px` }}>
+        <div className="flex-1 relative flex flex-col justify-between h-48 select-none bg-[#3e2723]">
+          {GUITAR_TUNING.map((stringBaseMidi, stringIndex) => (
+            <div key={stringIndex} className="relative flex-1 flex items-center border-b border-black/30">
+              <div
+                className="absolute w-full h-[2px] bg-gradient-to-b from-gray-300 to-gray-500 shadow-sm z-10 pointer-events-none"
+                style={{ height: `${Math.max(1, (6 - stringIndex) * 0.5)}px` }}
+              />
+              {frets.map((fret) => {
+                const key = cellKey(stringIndex, fret);
+                const cell = cellsByKey.get(key);
+                const isFilled = filledKeys.has(key);
+                const isMissed = missedKey === key;
+                const midi = stringBaseMidi + fret;
+                const noteInfo = midiToNoteString(midi);
+
+                return (
+                  <div
+                    key={fret}
+                    ref={(el) => {
+                      setCellRef(key, Boolean(cell), el);
+                    }}
+                    className="flex-1 h-full flex items-center justify-center relative z-20"
+                  >
+                    {cell && (
+                      <div
+                        onClick={() => onCellClick(cell)}
+                        className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer transition-colors border-2 ${
+                          isFilled
+                            ? 'bg-green-600 text-white border-green-300'
+                            : isMissed
+                              ? 'bg-red-600 text-white border-red-300'
+                              : 'bg-black/40 text-white/70 border-white/20 hover:border-indigo-400'
+                        }`}
+                        title={`String ${6 - stringIndex}, fret ${fret} (${noteInfo.note})`}
+                      >
+                        {isFilled ? noteInfo.note : ''}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex mt-2 pl-1" style={{ minWidth: `${fretCount * 64}px` }}>
+        {frets.map((fret) => (
+          <div key={fret} className="flex-1 text-center text-xs font-bold text-indigo-600">
+            {fret}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

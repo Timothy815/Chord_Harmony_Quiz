@@ -7,11 +7,12 @@ import { TheoryReference, ActiveChordContext } from './components/TheoryReferenc
 import { CircleOfFifths } from './components/CircleOfFifths';
 import { QuizModule } from './components/QuizModule';
 import { FlashcardShell } from './components/flashcards/FlashcardShell';
+import { FretboardTrainer } from './components/FretboardTrainer';
 import { findBestVoicingInWindow, FretVal } from './lib/guitarVoicings';
 import { getNoteIndex, GUITAR_TUNING } from './lib/musicTheory';
 import { playStrum } from './lib/audio';
 
-type AppView = 'main' | 'flashcards';
+type AppView = 'main' | 'flashcards' | 'trainer';
 
 export default function App() {
   const [view, setView] = useState<AppView>('main');
@@ -106,6 +107,12 @@ export default function App() {
               >
                 Flashcards
               </button>
+              <button
+                onClick={() => setView('trainer')}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${view === 'trainer' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}
+              >
+                Trainer
+              </button>
             </nav>
           </div>
           {view === 'main' && (
@@ -136,6 +143,8 @@ export default function App() {
 
       {view === 'flashcards' ? (
         <FlashcardShell />
+      ) : view === 'trainer' ? (
+        <FretboardTrainer />
       ) : (
         <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
           <section>

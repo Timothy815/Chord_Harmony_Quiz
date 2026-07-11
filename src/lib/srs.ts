@@ -57,6 +57,12 @@ export function intervalNumberKey(semitones: number, direction: string): string 
   return `interval-number:${semitones}:${direction}`;
 }
 
+export function trainerKey(
+  rootPitchClass: number, contentType: 'scale' | 'chord', typeName: string, shapeName: string,
+): string {
+  return `trainer:${rootPitchClass}:${contentType}:${typeName}:${shapeName}`;
+}
+
 export function isDue(record: CardRecord | undefined): boolean {
   return !record || record.dueDate <= todayStr();
 }
