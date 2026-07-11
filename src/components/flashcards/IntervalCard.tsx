@@ -38,6 +38,24 @@ const ALL_INTERVAL_OPTIONS = [
 
 const MAX_FRET_SPAN = 4;
 
+function SpeakerIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="w-4 h-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polygon points="4 9 8 9 13 4.5 13 19.5 8 15 4 15 4 9" fill="currentColor" stroke="none" />
+      <path d="M16.5 8.5a5 5 0 0 1 0 7" />
+      <path d="M19 6a8.5 8.5 0 0 1 0 12" />
+    </svg>
+  );
+}
+
 function findTarget(
   rootStr: number, rootFret: number, semitones: number, dir: 'across' | 'along'
 ): { stringIndex: number; fret: number } | null {
@@ -230,7 +248,7 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
             aria-label="Hear interval"
             className="w-9 h-9 flex items-center justify-center rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
           >
-            🔊
+            <SpeakerIcon />
           </button>
         </div>
       )}
@@ -291,7 +309,7 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
             aria-label="Replay interval"
             className="w-9 h-9 flex items-center justify-center rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
           >
-            🔊
+            <SpeakerIcon />
           </button>
         </div>
       )}
