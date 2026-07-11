@@ -44,9 +44,9 @@ export function TrainerFretboard({
   };
 
   return (
-    <div className="w-full max-w-3xl mx-auto overflow-x-auto pb-4 custom-scrollbar">
-      <div className="relative flex bg-amber-900 rounded-sm p-1 shadow-xl" style={{ minWidth: `${fretCount * 64}px` }}>
-        <div className="flex-1 relative flex flex-col justify-between h-48 select-none bg-[#3e2723]">
+    <div className="w-full max-w-5xl mx-auto overflow-x-auto pb-6 custom-scrollbar">
+      <div className="relative flex bg-amber-900 rounded-sm p-1 shadow-xl" style={{ minWidth: `${fretCount * 80}px` }}>
+        <div className="flex-1 relative flex flex-col justify-between h-64 select-none bg-[#3e2723]">
           <div className="absolute inset-0 pointer-events-none flex">
             {frets.map((fret) => (
               <div key={fret} className="flex-1 h-full flex items-center justify-center relative border-r border-black/40">
@@ -94,7 +94,7 @@ export function TrainerFretboard({
                     {cell && (
                       <div
                         onClick={() => onCellClick(cell)}
-                        className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer transition-colors border-2 ${
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer transition-colors border-2 ${
                           isFilled
                             ? 'bg-green-600 text-white border-green-300'
                             : isMissed
@@ -113,7 +113,7 @@ export function TrainerFretboard({
           ))}
         </div>
       </div>
-      <div className="flex mt-2 pl-1" style={{ minWidth: `${fretCount * 64}px` }}>
+      <div className="flex mt-4 pl-1" style={{ minWidth: `${fretCount * 80}px` }}>
         {frets.map((fret) => (
           <div key={fret} className="flex-1 text-center text-xs font-bold text-indigo-600">
             {fret}
