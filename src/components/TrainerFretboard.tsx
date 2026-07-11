@@ -101,7 +101,9 @@ export function TrainerFretboard({
                               ? 'bg-red-600 text-white border-red-300'
                               : 'bg-black/40 text-white/70 border-white/20 hover:border-indigo-400'
                         }`}
-                        title={`String ${6 - stringIndex}, fret ${fret} (${noteInfo.note})`}
+                        title={isFilled
+                          ? `String ${6 - stringIndex}, fret ${fret} (${noteInfo.note})`
+                          : `String ${6 - stringIndex}, fret ${fret}`}
                       >
                         {isFilled ? noteInfo.note : ''}
                       </div>
