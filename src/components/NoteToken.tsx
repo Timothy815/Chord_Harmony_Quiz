@@ -11,6 +11,21 @@ interface NoteTokenProps {
 
 const DRAG_THRESHOLD = 6;
 
+function viewportPoint(
+  event: MouseEvent | TouchEvent | PointerEvent,
+  pagePoint: { x: number; y: number },
+): { x: number; y: number } {
+  if ('changedTouches' in event && event.changedTouches.length > 0) {
+    const touch = event.changedTouches[0];
+    return { x: touch.clientX, y: touch.clientY };
+  }
+  if ('clientX' in event) {
+    return { x: event.clientX, y: event.clientY };
+  }
+
+  return { x: pagePoint.x - window.scrollX, y: pagePoint.y - window.scrollY };
+}
+
 export function NoteToken({
   pitchClass,
   label,
@@ -36,9 +51,9 @@ export function NoteToken({
           draggedRef.current = true;
         }
       }}
-      onDragEnd={(_event, info: PanInfo) => {
+      onDragEnd={(event, info: PanInfo) => {
         if (draggedRef.current) {
-          onDragEnd(pitchClass, { x: info.point.x, y: info.point.y });
+          onDragEnd(pitchClass, viewportPoint(event, info.point));
         }
       }}
       onClick={() => {
