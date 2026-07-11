@@ -3,10 +3,11 @@ import { GUITAR_TUNING, STRING_NAMES } from '../../lib/musicTheory';
 import { NoteCard, NoteCardData } from './NoteCard';
 import { IntervalCard, IntervalCardData } from './IntervalCard';
 import { PitchClassCard, PitchClassCardData } from './PitchClassCard';
+import { IntervalNumberCard, IntervalNumberCardData } from './IntervalNumberCard';
 import {
   SRSStore, CardRecord,
   loadStore, saveStore,
-  noteKey, intervalKey, pitchClassKey,
+  noteKey, intervalKey, pitchClassKey, intervalNumberKey,
   isDue, nextDueAfterToday, reviewCard,
 } from '../../lib/srs';
 
@@ -109,7 +110,7 @@ const INTERVAL_OPTIONS = [
 ];
 
 export function FlashcardShell() {
-  const [cardMode, setCardMode] = useState<'note' | 'interval' | 'pitch-class'>('note');
+  const [cardMode, setCardMode] = useState<'note' | 'interval' | 'pitch-class' | 'interval-number'>('note');
   const [showFilters, setShowFilters] = useState(false);
 
   // Note filters
@@ -133,10 +134,16 @@ export function FlashcardShell() {
   const [pcMultipleChoice, setPcMultipleChoice] = useState(true);
   const [pcFullChoices, setPcFullChoices] = useState(false);
 
+  // Interval-number filters
+  const [inDirection, setInDirection] = useState<'name-to-number' | 'number-to-name' | 'both'>('both');
+  const [inMultipleChoice, setInMultipleChoice] = useState(true);
+  const [inFullChoices, setInFullChoices] = useState(false);
+
   // Session state
   const [noteDeck, setNoteDeck] = useState<NoteCardData[]>([]);
   const [intervalDeck, setIntervalDeck] = useState<IntervalCardData[]>([]);
   const [pcDeck, setPcDeck] = useState<PitchClassCardData[]>([]);
+  const [inDeck, setInDeck] = useState<IntervalNumberCardData[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [correct, setCorrect] = useState(0);
@@ -149,8 +156,11 @@ export function FlashcardShell() {
   const [sessionNew, setSessionNew] = useState(0);
   const [nextDue, setNextDue] = useState<string | null>(null);
 
-  const deck: (NoteCardData | IntervalCardData | PitchClassCardData)[] =
-    cardMode === 'note' ? noteDeck : cardMode === 'interval' ? intervalDeck : pcDeck;
+  const deck: (NoteCardData | IntervalCardData | PitchClassCardData | IntervalNumberCardData)[] =
+    cardMode === 'note' ? noteDeck
+      : cardMode === 'interval' ? intervalDeck
+      : cardMode === 'pitch-class' ? pcDeck
+      : inDeck;
 
   const buildAndSetDecks = useCallback((store: SRSStore) => {
     storeRef.current = store;
@@ -176,11 +186,23 @@ export function FlashcardShell() {
     const pcResult = srsFilter(pcCandidates, c => pitchClassKey(c.pitchClass, c.direction), store);
     setPcDeck(pcResult.deck);
 
-    const active = cardMode === 'note' ? noteResult : cardMode === 'interval' ? intResult : pcResult;
+    const inDirs: ('name-to-number' | 'number-to-name')[] =
+      inDirection === 'both' ? ['name-to-number', 'number-to-name'] : [inDirection];
+    const inCandidates: IntervalNumberCardData[] = inDirs.flatMap(dir =>
+      Array.from({ length: 12 }, (_, i) => ({ semitones: i + 1, direction: dir }))
+    );
+    const inResult = srsFilter(inCandidates, c => intervalNumberKey(c.semitones, c.direction), store);
+    setInDeck(inResult.deck);
+
+    const active =
+      cardMode === 'note' ? noteResult
+        : cardMode === 'interval' ? intResult
+        : cardMode === 'pitch-class' ? pcResult
+        : inResult;
     setSessionDue(active.dueCount);
     setSessionNew(active.newCount);
     setNextDue(nextDueAfterToday(store));
-  }, [cardMode, noteStrings, fretStart, fretEnd, fretMode, positionFret, intStrings, intIntervals, intDirection, pcDirection]);
+  }, [cardMode, noteStrings, fretStart, fretEnd, fretMode, positionFret, intStrings, intIntervals, intDirection, pcDirection, inDirection]);
 
   const restart = useCallback(() => {
     const store = loadStore();
@@ -204,7 +226,7 @@ export function FlashcardShell() {
     restart();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const getCardKey = useCallback((card: NoteCardData | IntervalCardData | PitchClassCardData): string => {
+  const getCardKey = useCallback((card: NoteCardData | IntervalCardData | PitchClassCardData | IntervalNumberCardData): string => {
     if (cardMode === 'note') {
       const c = card as NoteCardData;
       return noteKey(c.stringIndex, c.fret);
@@ -213,8 +235,12 @@ export function FlashcardShell() {
       const c = card as IntervalCardData;
       return intervalKey(c.rootStringIndex, c.rootFret, c.intervalSemitones, c.direction);
     }
-    const c = card as PitchClassCardData;
-    return pitchClassKey(c.pitchClass, c.direction);
+    if (cardMode === 'pitch-class') {
+      const c = card as PitchClassCardData;
+      return pitchClassKey(c.pitchClass, c.direction);
+    }
+    const c = card as IntervalNumberCardData;
+    return intervalNumberKey(c.semitones, c.direction);
   }, [cardMode]);
 
   const handleFlip = () => setFlipped(true);
@@ -240,11 +266,16 @@ export function FlashcardShell() {
       const [card] = id.splice(currentIndex, 1);
       id.splice(Math.min(id.length, currentIndex + offset), 0, card);
       setIntervalDeck(id);
-    } else {
+    } else if (cardMode === 'pitch-class') {
       const pd = [...pcDeck];
       const [card] = pd.splice(currentIndex, 1);
       pd.splice(Math.min(pd.length, currentIndex + offset), 0, card);
       setPcDeck(pd);
+    } else {
+      const ind = [...inDeck];
+      const [card] = ind.splice(currentIndex, 1);
+      ind.splice(Math.min(ind.length, currentIndex + offset), 0, card);
+      setInDeck(ind);
     }
   };
 
@@ -313,7 +344,7 @@ export function FlashcardShell() {
   const cardKey = currentCard ? getCardKey(currentCard) : null;
   const cardRec: CardRecord | undefined = cardKey ? storeRef.current[cardKey] : undefined;
 
-  const modeBtn = (mode: 'note' | 'interval' | 'pitch-class', label: string) => (
+  const modeBtn = (mode: 'note' | 'interval' | 'pitch-class' | 'interval-number', label: string) => (
     <button
       key={mode}
       onClick={() => setCardMode(mode)}
@@ -345,6 +376,7 @@ export function FlashcardShell() {
           {modeBtn('note', 'Note Cards')}
           {modeBtn('interval', 'Interval Cards')}
           {modeBtn('pitch-class', 'Note Numbers')}
+          {modeBtn('interval-number', 'Interval Numbers')}
         </div>
         <div className="flex items-center gap-3 text-sm">
           {deck.length > 0 && (sessionDue > 0 || sessionNew > 0) && (
@@ -510,7 +542,7 @@ export function FlashcardShell() {
                 Multiple choice mode
               </label>
             </>
-          ) : (
+          ) : cardMode === 'interval' ? (
             <>
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Difficulty</p>
@@ -574,6 +606,47 @@ export function FlashcardShell() {
                     className="rounded"
                   />
                   Show semitone counts on choices
+                </label>
+              )}
+            </>
+          ) : (
+            <>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Direction</p>
+                <div className="flex gap-2">
+                  {([
+                    { v: 'name-to-number', l: 'Name → Number' },
+                    { v: 'number-to-name', l: 'Number → Name' },
+                    { v: 'both', l: 'Both' },
+                  ] as const).map(d => (
+                    <button
+                      key={d.v}
+                      onClick={() => setInDirection(d.v)}
+                      className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                        inDirection === d.v ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:border-indigo-400'
+                      }`}
+                    >
+                      {d.l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox" checked={inMultipleChoice}
+                  onChange={e => setInMultipleChoice(e.target.checked)}
+                  className="rounded"
+                />
+                Multiple choice mode
+              </label>
+              {inMultipleChoice && (
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer ml-4">
+                  <input
+                    type="checkbox" checked={inFullChoices}
+                    onChange={e => setInFullChoices(e.target.checked)}
+                    className="rounded"
+                  />
+                  Show all 12 choices (harder)
                 </label>
               )}
             </>
@@ -703,7 +776,7 @@ export function FlashcardShell() {
               onCorrect={handleAutoCorrect}
               onIncorrect={handleAutoIncorrect}
             />
-          ) : (
+          ) : cardMode === 'pitch-class' ? (
             <PitchClassCard
               key={`${currentIndex}-${seen}`}
               card={currentCard as PitchClassCardData}
@@ -713,6 +786,17 @@ export function FlashcardShell() {
               onFlip={handleFlip}
               onCorrect={pcMultipleChoice ? handleAutoCorrect : () => {}}
               onIncorrect={pcMultipleChoice ? handleAutoIncorrect : () => {}}
+            />
+          ) : (
+            <IntervalNumberCard
+              key={`${currentIndex}-${seen}`}
+              card={currentCard as IntervalNumberCardData}
+              flipped={flipped}
+              multipleChoice={inMultipleChoice}
+              fullChoices={inFullChoices}
+              onFlip={handleFlip}
+              onCorrect={inMultipleChoice ? handleAutoCorrect : () => {}}
+              onIncorrect={inMultipleChoice ? handleAutoIncorrect : () => {}}
             />
           )}
           {flipped && (
