@@ -128,6 +128,7 @@ export function FlashcardShell() {
   const [intStrings, setIntStrings] = useState<number[]>(ALL_STRING_INDICES);
   const [showSemitones, setShowSemitones] = useState(true);
   const [showSemitoneRef, setShowSemitoneRef] = useState(false);
+  const [allowPreListen, setAllowPreListen] = useState(false);
 
   // Pitch-class filters
   const [pcDirection, setPcDirection] = useState<'note-to-number' | 'number-to-note' | 'both'>('both');
@@ -623,6 +624,14 @@ export function FlashcardShell() {
                   Show semitone counts on choices
                 </label>
               )}
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox" checked={allowPreListen}
+                  onChange={e => setAllowPreListen(e.target.checked)}
+                  className="rounded"
+                />
+                Allow hearing interval before answering
+              </label>
             </>
           ) : (
             <>
@@ -787,6 +796,7 @@ export function FlashcardShell() {
               level={intLevel}
               flipped={flipped}
               showSemitones={showSemitones}
+              allowPreListen={allowPreListen}
               onFlip={handleFlip}
               onCorrect={handleAutoCorrect}
               onIncorrect={handleAutoIncorrect}

@@ -15,6 +15,7 @@ interface IntervalCardProps {
   level: 1 | 2 | 3;
   flipped: boolean;
   showSemitones?: boolean;
+  allowPreListen?: boolean;
   onFlip: () => void;
   onCorrect: () => void;
   onIncorrect: () => void;
@@ -73,7 +74,7 @@ function computeWindow(
   };
 }
 
-export function IntervalCard({ card, level, flipped, showSemitones = false, onFlip, onCorrect, onIncorrect }: IntervalCardProps) {
+export function IntervalCard({ card, level, flipped, showSemitones = false, allowPreListen = false, onFlip, onCorrect, onIncorrect }: IntervalCardProps) {
   const [l1Answer, setL1Answer] = useState<number | null>(null);
   const [l2Selected, setL2Selected] = useState<{ stringIndex: number; fret: number } | null>(null);
   const [userDot, setUserDot] = useState<{ stringIndex: number; fret: number } | null>(null);
@@ -220,6 +221,19 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, onFl
           </>
         )}
       </div>
+
+      {/* Pre-answer listen */}
+      {allowPreListen && !answered && (
+        <div className="flex justify-center mb-5">
+          <button
+            onClick={playCurrentInterval}
+            aria-label="Hear interval"
+            className="w-9 h-9 flex items-center justify-center rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+          >
+            🔊
+          </button>
+        </div>
+      )}
 
       {/* Mini fretboard */}
       <div className="flex justify-center mb-5">
