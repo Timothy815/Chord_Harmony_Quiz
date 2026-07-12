@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { GUITAR_TUNING, STRING_NAMES, INTERVAL_NAMES } from '../../lib/musicTheory';
 import { MiniFretboard, FretDot } from './MiniFretboard';
-import { playInterval } from '../../lib/audio';
+import { playHarmonicInterval, playInterval } from '../../lib/audio';
 
 export interface IntervalCardData {
   rootStringIndex: number;
@@ -168,6 +168,28 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
   const rootMidi = GUITAR_TUNING[card.rootStringIndex] + card.rootFret;
   const targetMidi = GUITAR_TUNING[target.stringIndex] + target.fret;
   const playCurrentInterval = () => { void playInterval(rootMidi, targetMidi); };
+  const playCurrentIntervalHarmonically = () => { void playHarmonicInterval(rootMidi, targetMidi); };
+
+  const soundButtons = (replay = false) => (
+    <div className="flex justify-center gap-2">
+      <button
+        onClick={playCurrentInterval}
+        aria-label={`${replay ? 'Replay' : 'Hear'} interval melodically`}
+        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 text-indigo-700 text-sm font-medium hover:bg-indigo-100 transition-colors"
+      >
+        <SpeakerIcon />
+        Melodic
+      </button>
+      <button
+        onClick={playCurrentIntervalHarmonically}
+        aria-label={`${replay ? 'Replay' : 'Hear'} interval harmonically`}
+        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 text-amber-800 text-sm font-medium hover:bg-amber-100 transition-colors"
+      >
+        <SpeakerIcon />
+        Harmonic
+      </button>
+    </div>
+  );
 
   const handleL1 = (semitones: number) => {
     setL1Answer(semitones);
@@ -242,15 +264,7 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
 
       {/* Pre-answer listen */}
       {allowPreListen && !answered && (
-        <div className="flex justify-center mb-5">
-          <button
-            onClick={playCurrentInterval}
-            aria-label="Hear interval"
-            className="w-9 h-9 flex items-center justify-center rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
-          >
-            <SpeakerIcon />
-          </button>
-        </div>
+        <div className="mb-5">{soundButtons()}</div>
       )}
 
       {/* Mini fretboard */}
@@ -303,15 +317,7 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
 
       {/* Replay interval sound */}
       {answered && (
-        <div className="flex justify-center mb-2">
-          <button
-            onClick={playCurrentInterval}
-            aria-label="Replay interval"
-            className="w-9 h-9 flex items-center justify-center rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
-          >
-            <SpeakerIcon />
-          </button>
-        </div>
+        <div className="mb-2">{soundButtons(true)}</div>
       )}
 
       {/* Feedback banners */}

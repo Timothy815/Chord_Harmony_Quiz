@@ -78,4 +78,12 @@ export async function playInterval(midiA: number, midiB: number, gapMs = 450) {
   sampler!.triggerAttack(midiToToneNote(midiB), now + gapMs / 1000, 0.9);
 }
 
+// Plays both notes together so the interval can be heard harmonically.
+export async function playHarmonicInterval(midiA: number, midiB: number) {
+  await resume();
+  const now = Tone.now();
+  sampler!.triggerAttack(midiToToneNote(midiA), now, 0.85);
+  sampler!.triggerAttack(midiToToneNote(midiB), now, 0.85);
+}
+
 export const noteToFreq = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
