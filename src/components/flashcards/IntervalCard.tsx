@@ -3,6 +3,7 @@ import { GUITAR_TUNING, STRING_NAMES, INTERVAL_NAMES } from '../../lib/musicTheo
 import { MiniFretboard, FretDot } from './MiniFretboard';
 import { playHarmonicInterval, playInterval, playIntervalSuccess } from '../../lib/audio';
 import { IntervalAttemptResult, scoreIntervalAttempt } from '../../lib/intervalScoring';
+import { crossesGBBoundary, STANDARD_TUNING_GAPS } from '../../lib/guitarTuningIntervals';
 
 export interface IntervalCardData {
   rootStringIndex: number;
@@ -17,6 +18,7 @@ interface IntervalCardProps {
   flipped: boolean;
   showSemitones?: boolean;
   allowPreListen?: boolean;
+  showTuningIntervals?: boolean;
   onFlip: () => void;
   onCorrect: (result: IntervalAttemptResult) => void;
   onIncorrect: () => void;
@@ -93,7 +95,7 @@ function computeWindow(
   };
 }
 
-export function IntervalCard({ card, level, flipped, showSemitones = false, allowPreListen = false, onFlip, onCorrect, onIncorrect }: IntervalCardProps) {
+export function IntervalCard({ card, level, flipped, showSemitones = false, allowPreListen = false, showTuningIntervals = false, onFlip, onCorrect, onIncorrect }: IntervalCardProps) {
   const [l1Answer, setL1Answer] = useState<number | null>(null);
   const [l2Selected, setL2Selected] = useState<{ stringIndex: number; fret: number } | null>(null);
   const [userDot, setUserDot] = useState<{ stringIndex: number; fret: number } | null>(null);
@@ -292,6 +294,19 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
   const l3IsCorrect = userDot
     ? userDot.stringIndex === target.stringIndex && userDot.fret === target.fret
     : false;
+  const relevantMistakeCrossesGB = level === 1
+    ? l1Answer !== null
+      && l1Answer !== card.intervalSemitones
+      && crossesGBBoundary(card.rootStringIndex, target.stringIndex)
+    : level === 2
+      ? l2Selected !== null
+        && !l2IsCorrect
+        && (crossesGBBoundary(card.rootStringIndex, l2Selected.stringIndex)
+          || crossesGBBoundary(card.rootStringIndex, target.stringIndex))
+      : produceWrong
+        && userDot !== null
+        && (crossesGBBoundary(card.rootStringIndex, userDot.stringIndex)
+          || crossesGBBoundary(card.rootStringIndex, target.stringIndex));
 
   const answered = flipped;
 
@@ -330,6 +345,28 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
       {/* Pre-answer listen */}
       {allowPreListen && !answered && (
         <div className="mb-5">{soundButtons()}</div>
+      )}
+
+      {showTuningIntervals && (
+        <div className="mb-5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+          <p className="mb-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+            Standard tuning gaps · low → high
+          </p>
+          <div className="flex flex-wrap justify-center gap-1.5 text-xs font-medium">
+            {STANDARD_TUNING_GAPS.map(gap => (
+              <span
+                key={`${gap.from}-${gap.to}`}
+                className={`rounded-md border px-2 py-1 ${
+                  gap.exception
+                    ? 'border-amber-300 bg-amber-100 text-amber-900'
+                    : 'border-slate-200 bg-white text-slate-700'
+                }`}
+              >
+                {gap.from}–{gap.to} {gap.label} · {gap.semitones}st
+              </span>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Mini fretboard */}
@@ -439,6 +476,13 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
           {l3IsCorrect
             ? '✓ Correct!'
             : '✗ Not quite. Listen to your answer, move the dot, and try again.'}
+        </div>
+      )}
+      {showTuningIntervals && relevantMistakeCrossesGB && !flipped && (
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-center text-xs text-amber-900">
+          <strong>G–B exception:</strong> G to B is a major third (4 semitones); every other
+          adjacent string pair is a perfect fourth (5 semitones). Adjust the shape by one fret
+          when crossing this boundary.
         </div>
       )}
       {flipped && finalResult && (

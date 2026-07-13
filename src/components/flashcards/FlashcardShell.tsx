@@ -130,6 +130,7 @@ export function FlashcardShell() {
   const [showSemitones, setShowSemitones] = useState(true);
   const [showSemitoneRef, setShowSemitoneRef] = useState(false);
   const [allowPreListen, setAllowPreListen] = useState(true);
+  const [showTuningIntervals, setShowTuningIntervals] = useState(true);
 
   // Pitch-class filters
   const [pcDirection, setPcDirection] = useState<'note-to-number' | 'number-to-note' | 'both'>('both');
@@ -609,7 +610,10 @@ export function FlashcardShell() {
                   {([1, 2, 3] as const).map(lvl => (
                     <button
                       key={lvl}
-                      onClick={() => setIntLevel(lvl)}
+                      onClick={() => {
+                        setIntLevel(lvl);
+                        setShowTuningIntervals(lvl !== 3);
+                      }}
                       className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
                         intLevel === lvl ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:border-indigo-400'
                       }`}
@@ -674,6 +678,14 @@ export function FlashcardShell() {
                   className="rounded"
                 />
                 Allow hearing interval before answering
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox" checked={showTuningIntervals}
+                  onChange={e => setShowTuningIntervals(e.target.checked)}
+                  className="rounded"
+                />
+                Show tuning intervals
               </label>
             </>
           ) : (
@@ -853,6 +865,7 @@ export function FlashcardShell() {
               flipped={flipped}
               showSemitones={showSemitones}
               allowPreListen={allowPreListen}
+              showTuningIntervals={showTuningIntervals}
               onFlip={handleFlip}
               onCorrect={handleIntervalCorrect}
               onIncorrect={handleIntervalIncorrect}
