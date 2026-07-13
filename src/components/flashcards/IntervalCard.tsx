@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { GUITAR_TUNING, STRING_NAMES, INTERVAL_NAMES } from '../../lib/musicTheory';
 import { MiniFretboard, FretDot } from './MiniFretboard';
-import { playHarmonicInterval, playInterval } from '../../lib/audio';
+import { playHarmonicInterval, playInterval, playIntervalSuccess } from '../../lib/audio';
 
 export interface IntervalCardData {
   rootStringIndex: number;
@@ -169,6 +169,11 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
   const targetMidi = GUITAR_TUNING[target.stringIndex] + target.fret;
   const playCurrentInterval = () => { void playInterval(rootMidi, targetMidi); };
   const playCurrentIntervalHarmonically = () => { void playHarmonicInterval(rootMidi, targetMidi); };
+  const playAnswerFeedback = (correct: boolean) => {
+    void (correct
+      ? playIntervalSuccess(rootMidi, targetMidi)
+      : playInterval(rootMidi, targetMidi));
+  };
 
   const soundButtons = (replay = false) => (
     <div className="flex justify-center gap-2">
@@ -192,10 +197,11 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
   );
 
   const handleL1 = (semitones: number) => {
+    const correct = semitones === card.intervalSemitones;
     setL1Answer(semitones);
     onFlip();
-    playCurrentInterval();
-    if (semitones === card.intervalSemitones) onCorrect(); else onIncorrect();
+    playAnswerFeedback(correct);
+    if (correct) onCorrect(); else onIncorrect();
   };
 
   const handleL2Click = (s: number, f: number) => {
@@ -204,7 +210,7 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
     if (!candidate) return;
     setL2Selected({ stringIndex: s, fret: f });
     onFlip();
-    playCurrentInterval();
+    playAnswerFeedback(candidate.isCorrect);
     if (candidate.isCorrect) onCorrect(); else onIncorrect();
   };
 
@@ -217,7 +223,7 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
     if (!userDot) return;
     const correct = userDot.stringIndex === target.stringIndex && userDot.fret === target.fret;
     onFlip();
-    playCurrentInterval();
+    playAnswerFeedback(correct);
     if (correct) onCorrect(); else onIncorrect();
   };
 

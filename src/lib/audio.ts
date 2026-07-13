@@ -86,4 +86,21 @@ export async function playHarmonicInterval(midiA: number, midiB: number) {
   sampler!.triggerAttack(midiToToneNote(midiB), now, 0.85);
 }
 
+// Correct-answer phrase: melodic interval first, then the harmonic interval.
+export async function playIntervalSuccess(midiA: number, midiB: number) {
+  await resume();
+  const now = Tone.now();
+  const targetAt = now + 0.45;
+  const harmonicAt = now + 1.05;
+
+  sampler!.triggerAttackRelease(midiToToneNote(midiA), 0.32, now, 0.9);
+  sampler!.triggerAttackRelease(midiToToneNote(midiB), 0.32, targetAt, 0.9);
+  sampler!.triggerAttackRelease(
+    [midiToToneNote(midiA), midiToToneNote(midiB)],
+    0.8,
+    harmonicAt,
+    0.85,
+  );
+}
+
 export const noteToFreq = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
