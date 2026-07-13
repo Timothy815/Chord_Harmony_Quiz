@@ -12,6 +12,7 @@ import { ProgressDashboard } from './components/ProgressDashboard';
 import { findBestVoicingInWindow, FretVal } from './lib/guitarVoicings';
 import { getNoteIndex, GUITAR_TUNING } from './lib/musicTheory';
 import { playStrum } from './lib/audio';
+import type { PracticeTarget } from './lib/analytics';
 
 type AppView = 'main' | 'flashcards' | 'trainer' | 'progress';
 
@@ -21,6 +22,19 @@ export default function App() {
   const [voicing, setVoicing] = useState<FretVal[] | null>(null);
   const [fretFocus, setFretFocus] = useState<number | 'all'>('all');
   const [activeChord, setActiveChord] = useState<ActiveChordContext | null>(null);
+  const [practiceTarget, setPracticeTarget] = useState<PracticeTarget | undefined>();
+
+  const openView = (nextView: AppView) => {
+    setPracticeTarget(undefined);
+    setView(nextView);
+  };
+
+  const practiceSkill = (target: PracticeTarget) => {
+    setPracticeTarget(target);
+    setView(target.module === 'Fretboard Trainer'
+      ? 'trainer'
+      : target.module === 'Chord Quiz' ? 'main' : 'flashcards');
+  };
 
   const applyAutoVoicing = (midis: number[], chord: ActiveChordContext | null, focus: number | 'all') => {
     if (midis.length === 0) { setVoicing(null); return; }
@@ -97,25 +111,25 @@ export default function App() {
             </div>
             <nav className="flex gap-1">
               <button
-                onClick={() => setView('main')}
+                onClick={() => openView('main')}
                 className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${view === 'main' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}
               >
                 Learn
               </button>
               <button
-                onClick={() => setView('flashcards')}
+                onClick={() => openView('flashcards')}
                 className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${view === 'flashcards' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}
               >
                 Flashcards
               </button>
               <button
-                onClick={() => setView('trainer')}
+                onClick={() => openView('trainer')}
                 className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${view === 'trainer' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}
               >
                 Trainer
               </button>
               <button
-                onClick={() => setView('progress')}
+                onClick={() => openView('progress')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${view === 'progress' ? 'bg-teal-700 text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}
               >
                 <BarChart3 className="h-3.5 w-3.5" />
@@ -150,11 +164,11 @@ export default function App() {
       </header>
 
       {view === 'flashcards' ? (
-        <FlashcardShell />
+        <FlashcardShell practiceTarget={practiceTarget} />
       ) : view === 'trainer' ? (
-        <FretboardTrainer />
+        <FretboardTrainer practiceTarget={practiceTarget} />
       ) : view === 'progress' ? (
-        <ProgressDashboard />
+        <ProgressDashboard onPracticeSkill={practiceSkill} />
       ) : (
         <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
           <section>
@@ -162,6 +176,7 @@ export default function App() {
               activeNotes={activeNotes}
               onSetTargetNotes={handleNotesSelected}
               onClearNotes={clearNotes}
+              practiceTarget={practiceTarget}
             />
           </section>
           <section className="space-y-8">

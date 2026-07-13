@@ -1,23 +1,39 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NOTES, CHORDS, buildChord, SCALES, buildScale, getMidiFromNoteStrAndOctave } from '../lib/musicTheory';
 import { recordPractice } from '../lib/analytics';
+import type { PracticeTarget } from '../lib/analytics';
 
 interface QuizModuleProps {
   activeNotes: number[];
   onSetTargetNotes: (midis: number[], context?: any) => void;
   onClearNotes: () => void;
+  practiceTarget?: PracticeTarget;
 }
 
-export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: QuizModuleProps) {
-  const [quizType, setQuizType] = useState<'identify_chord' | 'build_chord'>('identify_chord');
+export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes, practiceTarget }: QuizModuleProps) {
+  const targetParts = practiceTarget?.module === 'Chord Quiz' ? practiceTarget.topic.split(' · ') : [];
+  const targetChordType = targetParts[0] && targetParts[0] in CHORDS ? targetParts[0] : null;
+  const [quizType, setQuizType] = useState<'identify_chord' | 'build_chord'>(
+    targetParts[1] === 'build' ? 'build_chord' : 'identify_chord'
+  );
   const [targetChord, setTargetChord] = useState<{ root: string, chord: string } | null>(null);
   const [targetNotesMidi, setTargetNotesMidi] = useState<number[]>([]);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [options, setOptions] = useState<string[]>([]);
   const [hasGuessed, setHasGuessed] = useState<boolean>(false);
-  const [allowedChordTypes, setAllowedChordTypes] = useState<string[]>(Object.keys(CHORDS));
+  const [allowedChordTypes, setAllowedChordTypes] = useState<string[]>(targetChordType ? [targetChordType] : Object.keys(CHORDS));
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const questionStartedAtRef = useRef(performance.now());
+  const buildMistakesRef = useRef(0);
+  const buildDurationRef = useRef(0);
+  const questionRecordedRef = useRef(false);
+
+  const resetQuestionTracking = () => {
+    questionStartedAtRef.current = performance.now();
+    buildMistakesRef.current = 0;
+    buildDurationRef.current = 0;
+    questionRecordedRef.current = false;
+  };
 
   const toggleChordType = (type: string) => {
     setAllowedChordTypes(prev => {
@@ -34,6 +50,7 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
      onClearNotes();
      setFeedback(null);
      setHasGuessed(false);
+     resetQuestionTracking();
      const scaleDef = (CHORDS as any)[type];
      const intervals = scaleDef.intervals;
      const midis = intervals.map((interval: number) => getMidiFromNoteStrAndOctave(root, 4) + interval);
@@ -44,7 +61,7 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
     onClearNotes();
     setFeedback(null);
     setHasGuessed(false);
-    questionStartedAtRef.current = performance.now();
+    resetQuestionTracking();
     const roots = NOTES.slice(0, 12);
     const randomRoot = roots[Math.floor(Math.random() * roots.length)];
     const chordTypes = allowedChordTypes.length > 0 ? allowedChordTypes : Object.keys(CHORDS);
@@ -83,25 +100,28 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
   }, [quizType]);
 
   const checkBuildChord = () => {
-    if (!targetNotesMidi.length || activeNotes.length === 0) return;
+    if (!targetNotesMidi.length || activeNotes.length === 0 || questionRecordedRef.current) return;
     
     const targetPitchClasses = [...new Set(targetNotesMidi.map(n => n % 12))].sort((a: number, b: number) => a - b);
     const activePitchClasses = [...new Set(activeNotes.map(n => n % 12))].sort((a: number, b: number) => a - b);
     
     const isCorrect = targetPitchClasses.length === activePitchClasses.length
       && targetPitchClasses.every((v, i) => v === activePitchClasses[i]);
-    recordPractice({
-      module: 'Chord Quiz',
-      topic: targetChord?.chord ?? 'Chord building',
-      detail: targetChord ? `${targetChord.root} · build` : 'Build chord',
-      correct: isCorrect,
-      score: isCorrect ? 100 : 0,
-      attempts: 1,
-      durationMs: performance.now() - questionStartedAtRef.current,
-    });
+    buildDurationRef.current += performance.now() - questionStartedAtRef.current;
     questionStartedAtRef.current = performance.now();
 
     if (isCorrect) {
+      const attempts = buildMistakesRef.current + 1;
+      recordPractice({
+        module: 'Chord Quiz',
+        topic: `${targetChord?.chord ?? 'Chord'} · build`,
+        detail: targetChord?.root,
+        correct: true,
+        score: Math.round(100 / attempts),
+        attempts,
+        durationMs: buildDurationRef.current,
+      });
+      questionRecordedRef.current = true;
       // Check if it's the exact root inversion based on lowest note
       const lowestMidi = Math.min(...activeNotes);
       const isRootPosition = (lowestMidi % 12) === (targetNotesMidi[0] % 12);
@@ -113,6 +133,7 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
       }
       setHasGuessed(true);
     } else {
+      buildMistakesRef.current += 1;
       setFeedback("Not quite. You can keep trying, or click 'Show Answer'.");
       setHasGuessed(true);
     }
@@ -120,6 +141,20 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
 
   const showBuildAnswer = () => {
      if (targetChord) {
+       if (!questionRecordedRef.current) {
+         buildDurationRef.current += performance.now() - questionStartedAtRef.current;
+         recordPractice({
+           module: 'Chord Quiz',
+           topic: `${targetChord.chord} · build`,
+           detail: targetChord.root,
+           correct: false,
+           score: 0,
+           attempts: Math.max(1, buildMistakesRef.current),
+           durationMs: buildDurationRef.current,
+           assisted: true,
+         });
+         questionRecordedRef.current = true;
+       }
        const scaleDef = (CHORDS as any)[targetChord.chord];
        onSetTargetNotes(targetNotesMidi, {
          rootNote: targetChord.root,
@@ -127,6 +162,22 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
          intervals: scaleDef.intervals
        });
      }
+  };
+
+  const handleNextQuestion = () => {
+    if (quizType === 'build_chord' && hasGuessed && !questionRecordedRef.current && targetChord) {
+      buildDurationRef.current += performance.now() - questionStartedAtRef.current;
+      recordPractice({
+        module: 'Chord Quiz',
+        topic: `${targetChord.chord} · build`,
+        detail: targetChord.root,
+        correct: false,
+        score: 0,
+        attempts: Math.max(1, buildMistakesRef.current),
+        durationMs: buildDurationRef.current,
+      });
+    }
+    generateNewQuiz();
   };
 
   return (
@@ -188,13 +239,14 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
                           const isCorrect = guess === `${targetChord.root} ${targetChord.chord}`;
                           recordPractice({
                             module: 'Chord Quiz',
-                            topic: targetChord.chord,
+                            topic: `${targetChord.chord} · identify`,
                             detail: `${targetChord.root} · identify`,
                             correct: isCorrect,
                             score: isCorrect ? 100 : 0,
                             attempts: 1,
                             durationMs: performance.now() - questionStartedAtRef.current,
                           });
+                          questionRecordedRef.current = true;
                           if (isCorrect) {
                               setFeedback("Correct! Well done.");
                           } else {
@@ -275,7 +327,7 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
 
       <div className="mt-4 flex justify-end">
         <button 
-          onClick={generateNewQuiz}
+          onClick={handleNextQuestion}
           className="px-4 py-2 text-sm text-indigo-600 font-medium hover:bg-indigo-100 rounded transition-colors"
         >
           Next Question &rarr;

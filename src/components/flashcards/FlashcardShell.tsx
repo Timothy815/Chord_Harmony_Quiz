@@ -3,7 +3,7 @@ import { GUITAR_TUNING, INTERVAL_NAMES, STRING_NAMES } from '../../lib/musicTheo
 import { NoteCard, NoteCardData } from './NoteCard';
 import { IntervalCard, IntervalCardData } from './IntervalCard';
 import { IntervalAttemptResult } from '../../lib/intervalScoring';
-import { PracticeModule, recordPractice } from '../../lib/analytics';
+import { PracticeModule, PracticeTarget, recordPractice } from '../../lib/analytics';
 import { PitchClassCard, PitchClassCardData } from './PitchClassCard';
 import { IntervalNumberCard, IntervalNumberCardData } from './IntervalNumberCard';
 import {
@@ -111,12 +111,29 @@ const INTERVAL_OPTIONS = [
   { s: 10, n: 'Min 7th' }, { s: 11, n: 'Maj 7th' }, { s: 12, n: 'Octave' },
 ];
 
-export function FlashcardShell() {
-  const [cardMode, setCardMode] = useState<'note' | 'interval' | 'pitch-class' | 'interval-number'>('note');
+function targetInterval(target: PracticeTarget | undefined): number | null {
+  if (!target) return null;
+  return INTERVAL_OPTIONS.find(option => target.topic.startsWith(option.n))?.s ?? null;
+}
+
+function targetString(target: PracticeTarget | undefined): number | null {
+  if (target?.module !== 'Note Cards') return null;
+  const index = STRING_NAMES.findIndex(name => target.topic.startsWith(`${name} string`));
+  return index >= 0 ? index : null;
+}
+
+export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTarget }) {
+  const initialMode = practiceTarget?.module === 'Interval Cards' ? 'interval'
+    : practiceTarget?.module === 'Note Numbers' ? 'pitch-class'
+      : practiceTarget?.module === 'Interval Numbers' ? 'interval-number'
+        : 'note';
+  const initialInterval = targetInterval(practiceTarget);
+  const initialString = targetString(practiceTarget);
+  const [cardMode, setCardMode] = useState<'note' | 'interval' | 'pitch-class' | 'interval-number'>(initialMode);
   const [showFilters, setShowFilters] = useState(false);
 
   // Note filters
-  const [noteStrings, setNoteStrings] = useState<number[]>(ALL_STRING_INDICES);
+  const [noteStrings, setNoteStrings] = useState<number[]>(initialString === null ? ALL_STRING_INDICES : [initialString]);
   const [fretStart, setFretStart] = useState(0);
   const [fretEnd, setFretEnd] = useState(12);
   const [fretMode, setFretMode] = useState<'range' | 'landmark' | 'position'>('range');
@@ -124,22 +141,35 @@ export function FlashcardShell() {
   const [multipleChoice, setMultipleChoice] = useState(false);
 
   // Interval filters
-  const [intLevel, setIntLevel] = useState<1 | 2 | 3>(1);
-  const [intIntervals, setIntIntervals] = useState<number[]>(DEFAULT_INTERVALS);
-  const [intDirection, setIntDirection] = useState<'across' | 'along' | 'both'>('across');
+  const [intLevel, setIntLevel] = useState<1 | 2 | 3>(
+    practiceTarget?.topic.includes('· Produce ·') ? 3
+      : practiceTarget?.topic.includes('· Locate ·') ? 2 : 1
+  );
+  const [intIntervals, setIntIntervals] = useState<number[]>(initialInterval === null ? DEFAULT_INTERVALS : [initialInterval]);
+  const [intDirection, setIntDirection] = useState<'across' | 'along' | 'both'>(
+    practiceTarget?.topic.endsWith('· Along') ? 'along' : 'across'
+  );
   const [intStrings, setIntStrings] = useState<number[]>(ALL_STRING_INDICES);
   const [showSemitones, setShowSemitones] = useState(true);
   const [showSemitoneRef, setShowSemitoneRef] = useState(false);
   const [allowPreListen, setAllowPreListen] = useState(true);
-  const [showTuningIntervals, setShowTuningIntervals] = useState(true);
+  const [showTuningIntervals, setShowTuningIntervals] = useState(
+    !practiceTarget?.topic.includes('· Produce ·')
+  );
 
   // Pitch-class filters
-  const [pcDirection, setPcDirection] = useState<'note-to-number' | 'number-to-note' | 'both'>('both');
+  const [pcDirection, setPcDirection] = useState<'note-to-number' | 'number-to-note' | 'both'>(
+    practiceTarget?.topic === 'Note to number' ? 'note-to-number'
+      : practiceTarget?.topic === 'Number to note' ? 'number-to-note' : 'both'
+  );
   const [pcMultipleChoice, setPcMultipleChoice] = useState(true);
   const [pcFullChoices, setPcFullChoices] = useState(false);
 
   // Interval-number filters
-  const [inDirection, setInDirection] = useState<'name-to-number' | 'number-to-name' | 'both'>('both');
+  const [inDirection, setInDirection] = useState<'name-to-number' | 'number-to-name' | 'both'>(
+    practiceTarget?.topic.endsWith('· Name to number') ? 'name-to-number'
+      : practiceTarget?.topic.endsWith('· Number to name') ? 'number-to-name' : 'both'
+  );
   const [inMultipleChoice, setInMultipleChoice] = useState(true);
   const [inFullChoices, setInFullChoices] = useState(false);
 
@@ -165,6 +195,7 @@ export function FlashcardShell() {
   // SRS state
   const storeRef = useRef<SRSStore>({});
   const attemptStartedAtRef = useRef(performance.now());
+  const pendingAnalyticsRef = useRef<Record<string, { mistakes: number; durationMs: number }>>({});
   const [sessionDue, setSessionDue] = useState(0);
   const [sessionNew, setSessionNew] = useState(0);
   const [nextDue, setNextDue] = useState<string | null>(null);
@@ -226,6 +257,7 @@ export function FlashcardShell() {
     setSeen(0);
     setAutoResult(null);
     attemptStartedAtRef.current = performance.now();
+    pendingAnalyticsRef.current = {};
     setIntervalStats({
       completed: 0,
       totalScore: 0,
@@ -278,7 +310,7 @@ export function FlashcardShell() {
 
   const recordAnalytics = (
     wasCorrect: boolean,
-    options: { score?: number; attempts?: number; assisted?: boolean } = {},
+    options: { score?: number; attempts?: number; assisted?: boolean; durationMs?: number } = {},
   ) => {
     if (!currentCard) return;
     let module: PracticeModule;
@@ -293,8 +325,11 @@ export function FlashcardShell() {
     } else if (cardMode === 'interval') {
       const card = currentCard as IntervalCardData;
       module = 'Interval Cards';
-      topic = INTERVAL_NAMES[card.intervalSemitones] ?? `${card.intervalSemitones} semitones`;
-      detail = `${card.direction} · ${STRING_NAMES[card.rootStringIndex]} root · level ${intLevel}`;
+      const intervalName = INTERVAL_NAMES[card.intervalSemitones] ?? `${card.intervalSemitones} semitones`;
+      const levelName = intLevel === 1 ? 'Identify' : intLevel === 2 ? 'Locate' : 'Produce';
+      const directionName = card.direction === 'across' ? 'Across' : 'Along';
+      topic = `${intervalName} · ${levelName} · ${directionName}`;
+      detail = `${STRING_NAMES[card.rootStringIndex]} root`;
     } else if (cardMode === 'pitch-class') {
       const card = currentCard as PitchClassCardData;
       module = 'Note Numbers';
@@ -303,8 +338,10 @@ export function FlashcardShell() {
     } else {
       const card = currentCard as IntervalNumberCardData;
       module = 'Interval Numbers';
-      topic = INTERVAL_NAMES[card.semitones] ?? `${card.semitones} semitones`;
-      detail = card.direction;
+      const intervalName = INTERVAL_NAMES[card.semitones] ?? `${card.semitones} semitones`;
+      const directionName = card.direction === 'name-to-number' ? 'Name to number' : 'Number to name';
+      topic = `${intervalName} · ${directionName}`;
+      detail = directionName;
     }
 
     const now = performance.now();
@@ -315,9 +352,33 @@ export function FlashcardShell() {
       correct: wasCorrect,
       score: options.score ?? (wasCorrect ? 100 : 0),
       attempts: options.attempts ?? 1,
-      durationMs: now - attemptStartedAtRef.current,
+      durationMs: options.durationMs ?? now - attemptStartedAtRef.current,
       assisted: options.assisted,
     });
+  };
+
+  const recordFlashcardAttempt = (wasCorrect: boolean) => {
+    if (!currentCard) return;
+    const key = getCardKey(currentCard);
+    const now = performance.now();
+    const elapsedMs = now - attemptStartedAtRef.current;
+    const pending = pendingAnalyticsRef.current[key] ?? { mistakes: 0, durationMs: 0 };
+
+    if (!wasCorrect) {
+      pendingAnalyticsRef.current[key] = {
+        mistakes: pending.mistakes + 1,
+        durationMs: pending.durationMs + elapsedMs,
+      };
+      return;
+    }
+
+    const attempts = pending.mistakes + 1;
+    recordAnalytics(true, {
+      score: Math.round(100 / attempts),
+      attempts,
+      durationMs: pending.durationMs + elapsedMs,
+    });
+    delete pendingAnalyticsRef.current[key];
   };
 
   const reshuffleCurrentCard = () => {
@@ -348,14 +409,14 @@ export function FlashcardShell() {
   // Auto-scoring: called directly by MC and fretboard-click cards
   const handleAutoCorrect = () => {
     recordSRS(true);
-    recordAnalytics(true);
+    recordFlashcardAttempt(true);
     setCorrect(c => c + 1);
     setAutoResult('correct');
   };
 
   const handleAutoIncorrect = () => {
     recordSRS(false);
-    recordAnalytics(false);
+    recordFlashcardAttempt(false);
     reshuffleCurrentCard();
     setAutoResult('incorrect');
   };
@@ -397,7 +458,7 @@ export function FlashcardShell() {
   // Manual scoring: reveal-only note cards only
   const handleGotIt = () => {
     recordSRS(true);
-    recordAnalytics(true);
+    recordFlashcardAttempt(true);
     setCorrect(c => c + 1);
     setSeen(s => s + 1);
     setCurrentIndex(i => i + 1);
@@ -407,7 +468,7 @@ export function FlashcardShell() {
 
   const handleTryAgain = () => {
     recordSRS(false);
-    recordAnalytics(false);
+    recordFlashcardAttempt(false);
     setSeen(s => s + 1);
     reshuffleCurrentCard();
     setFlipped(false);

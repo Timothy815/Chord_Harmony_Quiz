@@ -6,6 +6,11 @@ export type PracticeModule =
   | 'Fretboard Trainer'
   | 'Chord Quiz';
 
+export interface PracticeTarget {
+  module: PracticeModule;
+  topic: string;
+}
+
 export interface PracticeEvent {
   id: string;
   occurredAt: string;
@@ -35,6 +40,8 @@ export interface SkillSummary {
   attempts: number;
   score: number;
   recentScore: number;
+  independentScore: number | null;
+  assistedAttempts: number;
 }
 
 const STORAGE_KEY = 'harmony-hub-analytics-v1';
@@ -64,6 +71,12 @@ export function loadPracticeEvents(): PracticeEvent[] {
   }
 }
 
+export function savePracticeEvents(events: PracticeEvent[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(events.slice(-MAX_EVENTS)));
+  } catch {}
+}
+
 export function recordPractice(input: PracticeEventInput): PracticeEvent {
   const now = new Date();
   const event: PracticeEvent = {
@@ -78,7 +91,7 @@ export function recordPractice(input: PracticeEventInput): PracticeEvent {
 
   try {
     const events = [...loadPracticeEvents(), event].slice(-MAX_EVENTS);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
+    savePracticeEvents(events);
   } catch {}
 
   return event;
@@ -123,12 +136,17 @@ export function summarizeSkills(events: PracticeEvent[]): SkillSummary[] {
 
   return Array.from(groups.values()).map(group => {
     const recent = group.slice(-5);
+    const independent = group.filter(event => !event.assisted).slice(-5);
     return {
       module: group[0].module,
       topic: group[0].topic,
       attempts: group.length,
       score: Math.round(group.reduce((total, event) => total + event.score, 0) / group.length),
       recentScore: Math.round(recent.reduce((total, event) => total + event.score, 0) / recent.length),
+      independentScore: independent.length
+        ? Math.round(independent.reduce((total, event) => total + event.score, 0) / independent.length)
+        : null,
+      assistedAttempts: group.filter(event => event.assisted).length,
     };
   });
 }

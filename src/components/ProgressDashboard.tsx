@@ -1,12 +1,15 @@
-import React, { useMemo, useState } from 'react';
-import { Activity, CalendarDays, Clock3, Target, TrendingUp } from 'lucide-react';
+import React, { useMemo, useRef, useState } from 'react';
+import { Activity, CalendarDays, Clock3, Download, Play, Target, TrendingUp, Upload } from 'lucide-react';
 import {
   currentPracticeStreak,
   loadPracticeEvents,
+  PracticeEvent,
+  PracticeTarget,
+  savePracticeEvents,
   SkillSummary,
   summarizeSkills,
 } from '../lib/analytics';
-import { loadStore, todayStr } from '../lib/srs';
+import { loadStore, saveStore, SRSStore, todayStr } from '../lib/srs';
 
 const CHART_WIDTH = 760;
 const CHART_HEIGHT = 260;
@@ -78,15 +81,18 @@ function SkillList({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-slate-800">{skill.topic}</p>
-                  <p className="text-xs text-slate-400">{skill.module} · {skill.attempts} tracked</p>
+                  <p className="text-xs text-slate-400">
+                    {skill.module} · {skill.attempts} tracked
+                    {skill.assistedAttempts > 0 ? ` · ${skill.assistedAttempts} assisted` : ''}
+                  </p>
                 </div>
                 <span className={`text-sm font-bold ${
                   tone === 'strong' ? 'text-emerald-700' : 'text-amber-800'
                 }`}>
-                  {skill.recentScore}
+                  {skill.independentScore ?? skill.recentScore}
                 </span>
               </div>
-              <ScoreBar score={skill.recentScore} tone={tone} />
+              <ScoreBar score={skill.independentScore ?? skill.recentScore} tone={tone} />
             </button>
           ))}
         </div>
@@ -95,12 +101,48 @@ function SkillList({
   );
 }
 
-export function ProgressDashboard() {
+export function ProgressDashboard({ onPracticeSkill }: { onPracticeSkill: (target: PracticeTarget) => void }) {
   const [attemptRange, setAttemptRange] = useState(25);
   const [requestedSkillKey, setRequestedSkillKey] = useState<string | null>(null);
-  const events = useMemo(() => loadPracticeEvents(), []);
-  const srsRecords = useMemo(() => Object.values(loadStore()), []);
+  const [events, setEvents] = useState(() => loadPracticeEvents());
+  const [srsStore, setSrsStore] = useState(() => loadStore());
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const srsRecords = useMemo(() => Object.values(srsStore), [srsStore]);
   const skillSummaries = useMemo(() => summarizeSkills(events), [events]);
+
+  const exportProgress = () => {
+    const payload = JSON.stringify({
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      analytics: events,
+      srs: srsStore,
+    }, null, 2);
+    const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `harmony-hub-progress-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importProgress = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text()) as { analytics?: PracticeEvent[]; srs?: SRSStore };
+      if (!Array.isArray(parsed.analytics) || !parsed.srs || typeof parsed.srs !== 'object') {
+        throw new Error('Invalid progress file');
+      }
+      savePracticeEvents(parsed.analytics);
+      saveStore(parsed.srs);
+      setEvents(loadPracticeEvents());
+      setSrsStore(loadStore());
+      setRequestedSkillKey(null);
+    } catch {
+      window.alert('This file is not a valid Harmony Hub progress export.');
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = '';
+    }
+  };
 
   const practicedDays = new Set(events.map(event => event.practiceDate)).size;
   const trackedDuration = events.reduce((total, event) => total + (event.durationMs ?? 0), 0);
@@ -110,15 +152,15 @@ export function ProgressDashboard() {
   const due = srsRecords.filter(record => record.dueDate <= todayStr()).length;
   const streak = currentPracticeStreak(events);
 
-  const reliableSkills = skillSummaries.filter(skill => skill.attempts >= 2);
-  const rankedPool = reliableSkills.length > 0 ? reliableSkills : skillSummaries;
-  const strengths = [...rankedPool]
-    .filter(skill => skill.recentScore >= 75)
-    .sort((a, b) => b.recentScore - a.recentScore || b.attempts - a.attempts)
+  const skillRankScore = (skill: SkillSummary) => skill.independentScore ?? skill.recentScore;
+  const reliableSkills = skillSummaries.filter(skill => skill.attempts >= 5);
+  const strengths = [...reliableSkills]
+    .filter(skill => skillRankScore(skill) >= 75)
+    .sort((a, b) => skillRankScore(b) - skillRankScore(a) || b.attempts - a.attempts)
     .slice(0, 5);
-  const weaknesses = [...rankedPool]
-    .filter(skill => skill.recentScore < 75)
-    .sort((a, b) => a.recentScore - b.recentScore || b.attempts - a.attempts)
+  const weaknesses = [...reliableSkills]
+    .filter(skill => skillRankScore(skill) < 75)
+    .sort((a, b) => skillRankScore(a) - skillRankScore(b) || b.attempts - a.attempts)
     .slice(0, 5);
 
   const selectableSkills = [...skillSummaries]
@@ -141,8 +183,16 @@ export function ProgressDashboard() {
   const selectedBest = selectedEvents.length
     ? Math.max(...selectedEvents.map(event => event.score))
     : null;
-  const selectedChange = selectedEvents.length > 1
-    ? selectedEvents[selectedEvents.length - 1].score - selectedEvents[0].score
+  const firstFive = allSelectedEvents.slice(0, 5);
+  const latestFive = allSelectedEvents.slice(-5);
+  const windowAverage = (window: PracticeEvent[]) => window.length
+    ? Math.round(window.reduce((total, event) => total + event.score, 0) / window.length)
+    : null;
+  const firstFiveAverage = windowAverage(firstFive);
+  const latestFiveAverage = windowAverage(latestFive);
+  const selectedChange = allSelectedEvents.length >= 5
+    && firstFiveAverage !== null && latestFiveAverage !== null
+    ? latestFiveAverage - firstFiveAverage
     : null;
 
   const plotWidth = CHART_WIDTH - CHART_PAD_X * 2;
@@ -156,12 +206,18 @@ export function ProgressDashboard() {
     attemptNumber: firstAttemptNumber + index,
   }));
   const pointString = activePoints.map(point => `${point.x},${point.y}`).join(' ');
+  const rollingPoints = activePoints.map((point, index) => {
+    const window = selectedEvents.slice(Math.max(0, index - 4), index + 1);
+    const average = window.reduce((total, event) => total + event.score, 0) / window.length;
+    return { x: point.x, y: CHART_PAD_Y + ((100 - average) / 100) * plotHeight };
+  });
+  const rollingPointString = rollingPoints.map(point => `${point.x},${point.y}`).join(' ');
   const labelEvery = Math.max(1, Math.floor(selectedEvents.length / 6));
 
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-[radial-gradient(circle_at_top_left,_#ecfeff_0,_transparent_32%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        <header>
+        <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="mb-1 text-xs font-bold uppercase tracking-[0.22em] text-teal-700">Practice intelligence</p>
             <h2 className="text-3xl font-bold tracking-tight text-slate-950">Your Progress</h2>
@@ -169,6 +225,27 @@ export function ProgressDashboard() {
               Proficiency rewards clean first attempts. Retries, revealed answers, and trainer misses
               lower the score so improvement reflects recall rather than eventual completion.
             </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={exportProgress}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm hover:bg-slate-50"
+            >
+              <Download className="h-3.5 w-3.5" /> Export
+            </button>
+            <button
+              onClick={() => importInputRef.current?.click()}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm hover:bg-slate-50"
+            >
+              <Upload className="h-3.5 w-3.5" /> Import
+            </button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={event => void importProgress(event.target.files?.[0])}
+            />
           </div>
         </header>
 
@@ -233,7 +310,7 @@ export function ProgressDashboard() {
               <p><span className="text-slate-400">Shown average</span> <strong className="ml-1 text-teal-700">{selectedAverage}</strong></p>
               <p><span className="text-slate-400">Best</span> <strong className="ml-1 text-slate-700">{selectedBest}</strong></p>
               <p>
-                <span className="text-slate-400">First-to-last</span>{' '}
+                <span className="text-slate-400">First 5 → latest 5</span>{' '}
                 <strong className={`ml-1 ${
                   selectedChange === null || selectedChange === 0
                     ? 'text-slate-600'
@@ -242,7 +319,18 @@ export function ProgressDashboard() {
                   {selectedChange === null ? '—' : `${selectedChange > 0 ? '+' : ''}${selectedChange}`}
                 </strong>
               </p>
+              <p>
+                <span className="text-slate-400">Independent</span>{' '}
+                <strong className="ml-1 text-slate-700">{selectedSkill.independentScore ?? '—'}</strong>
+                <span className="ml-1 text-slate-400">({selectedSkill.assistedAttempts} assisted)</span>
+              </p>
               <p><span className="text-slate-400">Lifetime attempts</span> <strong className="ml-1 text-slate-700">{allSelectedEvents.length}</strong></p>
+              <button
+                onClick={() => onPracticeSkill({ module: selectedSkill.module, topic: selectedSkill.topic })}
+                className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-3 py-1.5 font-semibold text-white hover:bg-teal-800"
+              >
+                <Play className="h-3 w-3 fill-current" /> Practice this skill
+              </button>
             </div>
           )}
           {activePoints.length === 0 ? (
@@ -272,6 +360,9 @@ export function ProgressDashboard() {
                 {activePoints.length > 1 && (
                   <polyline points={pointString} fill="none" stroke="#0f766e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                 )}
+                {rollingPoints.length > 1 && (
+                  <polyline points={rollingPointString} fill="none" stroke="#0f172a" strokeWidth="2.5" strokeDasharray="6 5" strokeLinecap="round" strokeLinejoin="round" />
+                )}
                 {activePoints.map(point => (
                   <circle
                     key={point.event.id}
@@ -279,11 +370,11 @@ export function ProgressDashboard() {
                     cy={point.y}
                     r="5"
                     fill={point.event.score >= 75 ? '#10b981' : point.event.score >= 50 ? '#f59e0b' : '#ef4444'}
-                    stroke="#fff"
-                    strokeWidth="2"
+                    stroke={point.event.assisted ? '#7c3aed' : '#fff'}
+                    strokeWidth={point.event.assisted ? 3 : 2}
                   >
                     <title>
-                      Attempt {point.attemptNumber} · {shortDate(point.event.practiceDate)} · score {point.event.score} · {point.event.attempts} {point.event.attempts === 1 ? 'try' : 'tries'}
+                      Attempt {point.attemptNumber} · {shortDate(point.event.practiceDate)} · score {point.event.score} · {point.event.attempts} {point.event.attempts === 1 ? 'try' : 'tries'}{point.event.assisted ? ' · assisted' : ''}
                     </title>
                   </circle>
                 ))}
@@ -293,7 +384,7 @@ export function ProgressDashboard() {
           {activePoints.length > 0 && (
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
               <p>Hover a point for its date, score, and number of tries.</p>
-              <p><span className="text-emerald-600">●</span> 75+ <span className="ml-2 text-amber-500">●</span> 50–74 <span className="ml-2 text-red-500">●</span> below 50</p>
+              <p><span className="text-slate-900">┄</span> 5-attempt average <span className="ml-2 text-violet-600">●</span> assisted <span className="ml-2 text-emerald-600">●</span> 75+ <span className="ml-2 text-amber-500">●</span> 50–74 <span className="ml-2 text-red-500">●</span> below 50</p>
             </div>
           )}
         </section>
@@ -303,7 +394,7 @@ export function ProgressDashboard() {
             title="Strongest skills"
             skills={strengths}
             tone="strong"
-            emptyText="Complete a few exercises to reveal your strongest skills."
+            emptyText="Complete at least five exercises in a skill to rank it confidently."
             selectedKey={selectedSkillKey}
             onSelect={skill => setRequestedSkillKey(`${skill.module}\u0000${skill.topic}`)}
           />
@@ -311,7 +402,7 @@ export function ProgressDashboard() {
             title="Needs attention"
             skills={weaknesses}
             tone="weak"
-            emptyText="Weaknesses will appear after your first tracked attempts."
+            emptyText="Needs-attention rankings appear after five attempts in a skill."
             selectedKey={selectedSkillKey}
             onSelect={skill => setRequestedSkillKey(`${skill.module}\u0000${skill.topic}`)}
           />

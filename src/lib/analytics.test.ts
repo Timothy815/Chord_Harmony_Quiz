@@ -44,7 +44,18 @@ test('skill summaries expose lifetime and recent proficiency', () => {
     attempts: 6,
     score: 58,
     recentScore: 50,
+    independentScore: 50,
+    assistedAttempts: 0,
   }]);
+});
+
+test('skill summaries separate assisted from independent proficiency', () => {
+  const independent = practiceEvent('2026-07-11', 'Major 6th', 100);
+  const assisted = { ...practiceEvent('2026-07-12', 'Major 6th', 50), assisted: true };
+  const [summary] = summarizeSkills([independent, assisted]);
+  assert.equal(summary.recentScore, 75);
+  assert.equal(summary.independentScore, 100);
+  assert.equal(summary.assistedAttempts, 1);
 });
 
 test('practice streak may continue from yesterday', () => {

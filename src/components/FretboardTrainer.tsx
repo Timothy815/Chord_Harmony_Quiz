@@ -13,6 +13,7 @@ import {
   SRSStore, loadStore, saveStore, trainerKey, isDue, reviewTrainerCard,
 } from '../lib/srs';
 import { recordPractice } from '../lib/analytics';
+import type { PracticeTarget } from '../lib/analytics';
 
 function shuffle<T>(arr: T[]): T[] {
   const next = [...arr];
@@ -106,13 +107,21 @@ function toggleValue<T extends string | number>(
   }
 }
 
-export function FretboardTrainer() {
+export function FretboardTrainer({ practiceTarget }: { practiceTarget?: PracticeTarget }) {
+  const targetParts = practiceTarget?.module === 'Fretboard Trainer'
+    ? practiceTarget.topic.split(' · ')
+    : [];
+  const targetContentType = targetParts[1] === 'scale' || targetParts[1] === 'chord'
+    ? targetParts[1] as ContentType
+    : null;
   const [showFilters, setShowFilters] = useState(false);
   const [roots, setRoots] = useState<number[]>(ALL_ROOTS);
-  const [contentTypes, setContentTypes] = useState<ContentType[]>(['scale', 'chord']);
-  const [scaleTypes, setScaleTypes] = useState<string[]>(['Major', 'Minor']);
-  const [chordTypes, setChordTypes] = useState<string[]>(['Major', 'Minor']);
-  const [shapeNames, setShapeNames] = useState<string[]>(ALL_SHAPE_NAMES);
+  const [contentTypes, setContentTypes] = useState<ContentType[]>(targetContentType ? [targetContentType] : ['scale', 'chord']);
+  const [scaleTypes, setScaleTypes] = useState<string[]>(targetContentType === 'scale' && targetParts[2] ? [targetParts[2]] : ['Major', 'Minor']);
+  const [chordTypes, setChordTypes] = useState<string[]>(targetContentType === 'chord' && targetParts[2] ? [targetParts[2]] : ['Major', 'Minor']);
+  const [shapeNames, setShapeNames] = useState<string[]>(
+    (ALL_SHAPE_NAMES as readonly string[]).includes(targetParts[0]) ? [targetParts[0]] : ALL_SHAPE_NAMES
+  );
   const [deck, setDeck] = useState<TrainerCombo[]>([]);
   const [roundId, setRoundId] = useState(0);
   const [currentCombo, setCurrentCombo] = useState<TrainerCombo | null>(null);
@@ -272,8 +281,8 @@ export function FretboardTrainer() {
     saveStore(storeRef.current);
     recordPractice({
       module: 'Fretboard Trainer',
-      topic: currentCombo.shape.name,
-      detail: `${NOTES[currentCombo.root]} ${currentCombo.typeName} ${currentCombo.contentType}`,
+      topic: `${currentCombo.shape.name} · ${currentCombo.contentType} · ${currentCombo.typeName}`,
+      detail: `${NOTES[currentCombo.root]} root`,
       correct: wasClean,
       score: Math.round(100 / (finalMissCount + 1)),
       attempts: finalMissCount + 1,
