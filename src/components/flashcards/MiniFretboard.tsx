@@ -67,9 +67,18 @@ export function MiniFretboard({
           <div key={s} className="flex items-center" style={{ height: '2.25rem' }}>
             {/* String label or open-string dot */}
             <div
-              className="w-8 flex items-center justify-center flex-shrink-0"
-              style={{ cursor: openDot && onFretClick ? 'pointer' : 'default' }}
-              onClick={() => openDot && onFretClick?.(s, 0)}
+              className={`w-8 flex items-center justify-center flex-shrink-0 rounded ${
+                onFretClick ? 'cursor-pointer hover:bg-indigo-50' : ''
+              }`}
+              onClick={() => onFretClick?.(s, 0)}
+              role={onFretClick ? 'button' : undefined}
+              tabIndex={onFretClick ? 0 : undefined}
+              aria-label={onFretClick ? `Select open ${STRING_LABELS[s]} string` : undefined}
+              onKeyDown={event => {
+                if (!onFretClick || (event.key !== 'Enter' && event.key !== ' ')) return;
+                event.preventDefault();
+                onFretClick(s, 0);
+              }}
             >
               {openDot ? (
                 <Dot dot={openDot} />
