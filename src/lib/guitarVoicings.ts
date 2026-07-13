@@ -3,7 +3,13 @@ import { getNoteIndex, GUITAR_TUNING } from './musicTheory';
 export type FretVal = number | 'x';
 export type VoicingArray = FretVal[];
 
-export const CHORD_SHAPES = {
+interface ChordShape {
+  name: string;
+  rootString: number;
+  frets: VoicingArray;
+}
+
+export const CHORD_SHAPES: Record<string, ChordShape[]> = {
   Major: [
     { name: 'E-Shape', rootString: 5, frets: [0, 0, 1, 2, 2, 0] },
     { name: 'A-Shape', rootString: 4, frets: [0, 2, 2, 2, 0, 'x'] }, 
@@ -12,9 +18,11 @@ export const CHORD_SHAPES = {
     { name: 'G-Shape', rootString: 5, frets: [3, 0, 0, 0, 2, 3] },
   ],
   Minor: [
-    { name: 'Em-Shape', rootString: 5, frets: [0, 0, 0, 2, 2, 0] },
-    { name: 'Am-Shape', rootString: 4, frets: [0, 1, 2, 2, 0, 'x'] },
-    { name: 'Dm-Shape', rootString: 3, frets: [1, 3, 2, 0, 'x', 'x'] },
+    { name: 'E-Shape', rootString: 5, frets: [0, 0, 0, 2, 2, 0] },
+    { name: 'A-Shape', rootString: 4, frets: [0, 1, 2, 2, 0, 'x'] },
+    { name: 'D-Shape', rootString: 3, frets: [1, 3, 2, 0, 'x', 'x'] },
+    { name: 'C-Shape', rootString: 4, frets: [3, 4, 5, 5, 3, 'x'] },
+    { name: 'G-Shape', rootString: 5, frets: [3, 3, 0, 0, 1, 3] },
   ],
   Dominant7: [
     { name: 'E-Shape (7)', rootString: 5, frets: [0, 0, 1, 0, 2, 0] },
@@ -34,25 +42,45 @@ export const CHORD_SHAPES = {
   ],
   Diminished: [
     { name: 'A-Shape (dim)', rootString: 4, frets: ['x', 1, 2, 1, 0, 'x'] },
-    { name: 'E-Shape (dim)', rootString: 5, frets: ['x', 'x', 0, 1, 1, 0] }
+    { name: 'E-Shape (dim)', rootString: 5, frets: [0, 'x', 0, 2, 1, 0] }
   ]
 };
 
+function transposeShape(
+  shape: { rootString: number; frets: readonly FretVal[] },
+  targetRootIdx: number,
+): VoicingArray | null {
+  const rootFret = shape.frets[shape.rootString];
+  if (rootFret === 'x') return null;
+  const shapeRootIdx = (GUITAR_TUNING[shape.rootString] + rootFret) % 12;
+  const shift = (targetRootIdx - shapeRootIdx + 12) % 12;
+
+  return shape.frets.map((fret) => fret === 'x' ? 'x' : fret + shift);
+}
+
+export function getCagedVoicing(
+  targetRoot: string,
+  chordType: string,
+  shapeName: string,
+): VoicingArray | null {
+  const shapes = CHORD_SHAPES[chordType] || [];
+  const shape = shapes.find((candidate) => candidate.name.startsWith(shapeName));
+  if (!shape) return null;
+  return transposeShape(shape, getNoteIndex(targetRoot));
+}
+
 export function generateVoicings(targetRoot: string, chordType: string) {
-  const shapes = CHORD_SHAPES[chordType as keyof typeof CHORD_SHAPES] || [];
+  const shapes = CHORD_SHAPES[chordType] || [];
   const targetRootIdx = getNoteIndex(targetRoot);
   const results: { name: string, frets: VoicingArray }[] = [];
 
   for (const shape of shapes) {
-    const openStringMidi = GUITAR_TUNING[shape.rootString];
-    const openRootIdx = openStringMidi % 12;
-
-    let shift = (targetRootIdx - openRootIdx + 12) % 12;
-
-    const transposed: VoicingArray = shape.frets.map((f: FretVal) => {
-      if (f === 'x') return 'x';
-      return parseInt((f as number).toString()) + shift;
-    });
+    const transposed = transposeShape(shape, targetRootIdx);
+    if (!transposed) continue;
+    const firstShapeFret = shape.frets[shape.rootString];
+    const shift = firstShapeFret === 'x'
+      ? 0
+      : (targetRootIdx - ((GUITAR_TUNING[shape.rootString] + firstShapeFret) % 12) + 12) % 12;
 
     const displayShift = shift > 0 ? ` (+${shift} fret)` : ' (Open)';
     
@@ -81,7 +109,7 @@ export function findBestVoicingInWindow(
     const baseMidi = GUITAR_TUNING[s];
     const options: FretVal[] = ['x']; 
     
-    if (pitchClasses.includes(baseMidi % 12)) options.push(0);
+    if (startFret === 0 && pitchClasses.includes(baseMidi % 12)) options.push(0);
 
     for (let f = startFret; f <= endFret; f++) {
       if (pitchClasses.includes((baseMidi + f) % 12)) {

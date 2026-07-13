@@ -3,8 +3,9 @@ import {
   NOTES, SCALES, CHORDS, getNoteIndex, buildScale, buildChord, GUITAR_TUNING,
 } from '../lib/musicTheory';
 import {
-  CAGED_ANCHORS, CagedAnchor, ScaleBoxCell, cellKey, generateScaleBox,
+  CAGED_ANCHORS, CagedAnchor, ScaleBoxCell, cellKey, generateScaleBox, getCagedFretRange,
 } from '../lib/scalePositions';
+import { findBestVoicingInWindow, getCagedVoicing } from '../lib/guitarVoicings';
 import { TrainerFretboard } from './TrainerFretboard';
 import { NoteToken } from './NoteToken';
 import { playMidiNote } from '../lib/audio';
@@ -73,6 +74,23 @@ function tonesForCombo(combo: TrainerCombo): number[] {
   return names.map((note) => getNoteIndex(note));
 }
 
+function cellsForCombo(combo: TrainerCombo): ScaleBoxCell[] {
+  if (combo.contentType === 'scale') {
+    return generateScaleBox(combo.root, tonesForCombo(combo), combo.shape);
+  }
+
+  const tones = tonesForCombo(combo);
+  const range = getCagedFretRange(combo.root, combo.shape);
+  const voicing = getCagedVoicing(NOTES[combo.root], combo.typeName, combo.shape.name)
+    ?? findBestVoicingInWindow(tones, combo.root, range.startFret, range.endFret);
+  if (!voicing) return [];
+  return voicing.flatMap((fret, stringIndex) => fret === 'x' ? [] : [{
+    stringIndex,
+    fret,
+    pitchClass: (GUITAR_TUNING[stringIndex] + fret) % 12,
+  }]);
+}
+
 function toggleValue<T extends string | number>(
   current: T[],
   value: T,
@@ -136,8 +154,7 @@ export function FretboardTrainer() {
 
     while (remaining.length > 0) {
       const combo = remaining.shift()!;
-      const tones = tonesForCombo(combo);
-      const cells = generateScaleBox(combo.root, tones, combo.shape);
+      const cells = cellsForCombo(combo);
 
       if (cells.length > 0) {
         const uniquePitchClasses = Array.from(new Set(cells.map((cell) => cell.pitchClass)));
@@ -202,7 +219,18 @@ export function FretboardTrainer() {
       }
     }
 
-    const nextDeck = [...shuffle(due), ...shuffle(fresh), ...shuffle(scheduled)];
+    const nextDeck = [...shuffle(due), ...shuffle(fresh), ...shuffle(scheduled)]
+      .filter((combo) => cellsForCombo(combo).length > 0);
+    if (nextDeck.length === 0) {
+      setDeck([]);
+      setCurrentCombo(null);
+      setFilteredCells([]);
+      setNoteTokens([]);
+      setFilledKeys(new Set());
+      setNoValidCombos(true);
+      setSessionTotal(0);
+      return;
+    }
     setSessionTotal(nextDeck.length);
     loadRound(nextDeck);
   }, [roots, contentTypes, scaleTypes, chordTypes, shapeNames, loadRound]);
