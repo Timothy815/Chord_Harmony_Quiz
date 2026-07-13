@@ -29,12 +29,11 @@ const DOT_CLASSES: Record<DotType, string> = {
   wrong: 'bg-red-400 text-white',
 };
 
-function Dot({ dot, onClick }: { dot: FretDot; onClick?: () => void }) {
+function Dot({ dot }: { dot: FretDot }) {
   return (
     <div
       className={`flex items-center justify-center text-xs font-bold rounded-full ${DOT_CLASSES[dot.type]}`}
       style={{ width: '1.6rem', height: '1.6rem' }}
-      onClick={onClick}
     >
       {dot.type === 'root' ? '1' : null}
     </div>
@@ -109,12 +108,7 @@ export function MiniFretboard({
                     style={{ top: '50%', height: '1px', background: '#9ca3af' }}
                   />
                   {dotHere ? (
-                    <Dot
-                      dot={dotHere}
-                      onClick={dotHere.type === 'candidate' && onFretClick
-                        ? () => onFretClick(s, f)
-                        : undefined}
-                    />
+                    <Dot dot={dotHere} />
                   ) : null}
                 </div>
               );

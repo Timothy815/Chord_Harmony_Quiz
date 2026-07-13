@@ -293,6 +293,12 @@ export function FlashcardShell() {
     setAutoResult('incorrect');
   };
 
+  // Interval cards remain active after a miss so the learner can retry in place.
+  const handleIntervalIncorrect = () => {
+    recordSRS(false);
+    setAutoResult(null);
+  };
+
   // Advance after auto-scored card
   const handleNext = () => {
     setSeen(s => s + 1);
@@ -799,7 +805,7 @@ export function FlashcardShell() {
               allowPreListen={allowPreListen}
               onFlip={handleFlip}
               onCorrect={handleAutoCorrect}
-              onIncorrect={handleAutoIncorrect}
+              onIncorrect={handleIntervalIncorrect}
             />
           ) : cardMode === 'pitch-class' ? (
             <PitchClassCard

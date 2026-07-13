@@ -96,6 +96,8 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
   const [l1Answer, setL1Answer] = useState<number | null>(null);
   const [l2Selected, setL2Selected] = useState<{ stringIndex: number; fret: number } | null>(null);
   const [userDot, setUserDot] = useState<{ stringIndex: number; fret: number } | null>(null);
+  const [produceWrong, setProduceWrong] = useState(false);
+  const [answerRevealed, setAnswerRevealed] = useState(false);
 
   const target = useMemo(
     () => findTarget(card.rootStringIndex, card.rootFret, card.intervalSemitones, card.direction),
@@ -144,15 +146,23 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
   if (level === 1) {
     dots.push({ stringIndex: target.stringIndex, fret: target.fret, type: 'interval' });
   } else if (level === 2) {
-    if (l2Selected) {
+    if (flipped && l2Selected) {
       dots.push({ stringIndex: target.stringIndex, fret: target.fret, type: 'interval' });
-      if (l2Selected.stringIndex !== target.stringIndex || l2Selected.fret !== target.fret) {
-        dots.push({ stringIndex: l2Selected.stringIndex, fret: l2Selected.fret, type: 'wrong' });
-      }
     } else {
-      l2Candidates.forEach(c =>
-        dots.push({ stringIndex: c.stringIndex, fret: c.fret, type: 'candidate' })
-      );
+      l2Candidates.forEach((candidate) => {
+        const isLastWrong = l2Selected
+          && candidate.stringIndex === l2Selected.stringIndex
+          && candidate.fret === l2Selected.fret;
+        dots.push({
+          stringIndex: candidate.stringIndex,
+          fret: candidate.fret,
+          type: isLastWrong
+            ? 'wrong'
+            : answerRevealed && candidate.isCorrect
+              ? 'interval'
+              : 'candidate',
+        });
+      });
     }
   } else if (level === 3) {
     if (flipped) {
@@ -161,7 +171,15 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
         dots.push({ stringIndex: userDot.stringIndex, fret: userDot.fret, type: 'wrong' });
       }
     } else if (userDot) {
-      dots.push({ stringIndex: userDot.stringIndex, fret: userDot.fret, type: 'user' });
+      dots.push({
+        stringIndex: userDot.stringIndex,
+        fret: userDot.fret,
+        type: produceWrong ? 'wrong' : 'user',
+      });
+      if (answerRevealed
+        && (userDot.stringIndex !== target.stringIndex || userDot.fret !== target.fret)) {
+        dots.push({ stringIndex: target.stringIndex, fret: target.fret, type: 'interval' });
+      }
     }
   }
 
@@ -170,9 +188,12 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
   const playCurrentInterval = () => { void playInterval(rootMidi, targetMidi); };
   const playCurrentIntervalHarmonically = () => { void playHarmonicInterval(rootMidi, targetMidi); };
   const playAnswerFeedback = (correct: boolean) => {
-    void (correct
-      ? playIntervalSuccess(rootMidi, targetMidi)
-      : playInterval(rootMidi, targetMidi));
+    if (correct) void playIntervalSuccess(rootMidi, targetMidi);
+  };
+  const playUserAnswer = () => {
+    if (!userDot) return;
+    const userMidi = GUITAR_TUNING[userDot.stringIndex] + userDot.fret;
+    void playInterval(rootMidi, userMidi);
   };
 
   const soundButtons = (replay = false) => (
@@ -199,32 +220,48 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
   const handleL1 = (semitones: number) => {
     const correct = semitones === card.intervalSemitones;
     setL1Answer(semitones);
-    onFlip();
     playAnswerFeedback(correct);
-    if (correct) onCorrect(); else onIncorrect();
+    if (correct) {
+      onFlip();
+      onCorrect();
+    } else {
+      onIncorrect();
+    }
   };
 
   const handleL2Click = (s: number, f: number) => {
-    if (l2Selected) return;
+    if (flipped) return;
     const candidate = l2Candidates.find(c => c.stringIndex === s && c.fret === f);
     if (!candidate) return;
     setL2Selected({ stringIndex: s, fret: f });
-    onFlip();
+    setAnswerRevealed(false);
     playAnswerFeedback(candidate.isCorrect);
-    if (candidate.isCorrect) onCorrect(); else onIncorrect();
+    if (candidate.isCorrect) {
+      onFlip();
+      onCorrect();
+    } else {
+      onIncorrect();
+    }
   };
 
   const handleL3Click = (s: number, f: number) => {
     if (flipped) return;
     setUserDot({ stringIndex: s, fret: f });
+    setProduceWrong(false);
+    setAnswerRevealed(false);
   };
 
   const handleL3Reveal = () => {
     if (!userDot) return;
     const correct = userDot.stringIndex === target.stringIndex && userDot.fret === target.fret;
-    onFlip();
     playAnswerFeedback(correct);
-    if (correct) onCorrect(); else onIncorrect();
+    if (correct) {
+      onFlip();
+      onCorrect();
+    } else {
+      setProduceWrong(true);
+      onIncorrect();
+    }
   };
 
   const l2IsCorrect = l2Selected
@@ -282,7 +319,7 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
           endFret={boardEndFret}
           dots={dots}
           onFretClick={
-            level === 2 && !l2Selected
+            level === 2 && !flipped
               ? handleL2Click
               : level === 3 && !flipped
               ? handleL3Click
@@ -311,12 +348,31 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
 
       {/* Level 3: reveal button */}
       {level === 3 && !flipped && userDot && (
-        <div className="flex justify-center">
+        <div className="flex justify-center gap-2 flex-wrap">
+          <button
+            onClick={playUserAnswer}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-sm font-medium hover:bg-amber-100 transition-colors"
+          >
+            <SpeakerIcon />
+            Play My Answer
+          </button>
           <button
             onClick={handleL3Reveal}
             className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
           >
-            Reveal
+            Check Answer
+          </button>
+        </div>
+      )}
+
+      {!flipped && ((level === 2 && l2Selected && !l2IsCorrect) || (level === 3 && produceWrong)) && (
+        <div className="flex justify-center mt-3">
+          <button
+            onClick={() => setAnswerRevealed(true)}
+            disabled={answerRevealed}
+            className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-default transition-colors"
+          >
+            {answerRevealed ? 'Answer Shown' : 'Show Answer'}
           </button>
         </div>
       )}
@@ -327,14 +383,15 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
       )}
 
       {/* Feedback banners */}
-      {level === 1 && flipped && l1Answer !== null && (
+      {level === 1 && l1Answer !== null && (
         <div
           className={`text-center p-3 rounded-lg text-sm font-medium ${
             l1Answer === card.intervalSemitones ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
           }`}
         >
-          {l1Answer === card.intervalSemitones ? '✓ ' : '✗ '}
-          {correctName} · {card.intervalSemitones} semitones
+          {l1Answer === card.intervalSemitones
+            ? `✓ ${correctName} · ${card.intervalSemitones} semitones`
+            : '✗ Not quite. Try another answer.'}
         </div>
       )}
       {level === 2 && l2Selected && (
@@ -345,10 +402,10 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
         >
           {l2IsCorrect
             ? `✓ ${STRING_NAMES[target.stringIndex]} string, fret ${target.fret}`
-            : `✗ Answer: ${STRING_NAMES[target.stringIndex]} string, fret ${target.fret}`}
+            : '✗ Not quite. The root is still marked ① — try another dot.'}
         </div>
       )}
-      {level === 3 && flipped && userDot && (
+      {level === 3 && userDot && (flipped || produceWrong) && (
         <div
           className={`text-center p-3 rounded-lg text-sm font-medium mt-2 ${
             l3IsCorrect ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
@@ -356,7 +413,7 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
         >
           {l3IsCorrect
             ? '✓ Correct!'
-            : `✗ Answer: ${STRING_NAMES[target.stringIndex]} string, fret ${target.fret}`}
+            : '✗ Not quite. Listen to your answer, move the dot, and try again.'}
         </div>
       )}
     </div>
