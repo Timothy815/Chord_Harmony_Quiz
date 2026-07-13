@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Activity, CalendarDays, Clock3, Target, TrendingUp } from 'lucide-react';
 import {
-  buildDailyProgress,
   currentPracticeStreak,
   loadPracticeEvents,
   SkillSummary,
@@ -42,11 +41,15 @@ function SkillList({
   skills,
   tone,
   emptyText,
+  selectedKey,
+  onSelect,
 }: {
   title: string;
   skills: SkillSummary[];
   tone: 'strong' | 'weak';
   emptyText: string;
+  selectedKey: string | null;
+  onSelect: (skill: SkillSummary) => void;
 }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -63,7 +66,15 @@ function SkillList({
       ) : (
         <div className="space-y-4">
           {skills.map(skill => (
-            <div key={`${skill.module}-${skill.topic}`}>
+            <button
+              key={`${skill.module}-${skill.topic}`}
+              onClick={() => onSelect(skill)}
+              className={`block w-full rounded-xl p-2 text-left transition-colors ${
+                selectedKey === `${skill.module}\u0000${skill.topic}`
+                  ? 'bg-teal-50 ring-1 ring-teal-200'
+                  : 'hover:bg-slate-50'
+              }`}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-slate-800">{skill.topic}</p>
@@ -76,7 +87,7 @@ function SkillList({
                 </span>
               </div>
               <ScoreBar score={skill.recentScore} tone={tone} />
-            </div>
+            </button>
           ))}
         </div>
       )}
@@ -85,16 +96,13 @@ function SkillList({
 }
 
 export function ProgressDashboard() {
-  const [range, setRange] = useState(30);
+  const [attemptRange, setAttemptRange] = useState(25);
+  const [requestedSkillKey, setRequestedSkillKey] = useState<string | null>(null);
   const events = useMemo(() => loadPracticeEvents(), []);
   const srsRecords = useMemo(() => Object.values(loadStore()), []);
-  const daily = useMemo(() => buildDailyProgress(events, range), [events, range]);
   const skillSummaries = useMemo(() => summarizeSkills(events), [events]);
 
   const practicedDays = new Set(events.map(event => event.practiceDate)).size;
-  const averageScore = events.length
-    ? Math.round(events.reduce((total, event) => total + event.score, 0) / events.length)
-    : 0;
   const trackedDuration = events.reduce((total, event) => total + (event.durationMs ?? 0), 0);
   const lifetimeReviews = srsRecords.reduce((total, record) => total + record.totalSeen, 0);
   const lifetimeCorrect = srsRecords.reduce((total, record) => total + record.totalCorrect, 0);
@@ -113,20 +121,47 @@ export function ProgressDashboard() {
     .sort((a, b) => a.recentScore - b.recentScore || b.attempts - a.attempts)
     .slice(0, 5);
 
+  const selectableSkills = [...skillSummaries]
+    .sort((a, b) => a.module.localeCompare(b.module) || a.topic.localeCompare(b.topic));
+  const defaultSkill = [...skillSummaries].sort((a, b) => b.attempts - a.attempts)[0] ?? null;
+  const selectedSkill = skillSummaries.find(
+    skill => `${skill.module}\u0000${skill.topic}` === requestedSkillKey
+  ) ?? defaultSkill;
+  const selectedSkillKey = selectedSkill
+    ? `${selectedSkill.module}\u0000${selectedSkill.topic}`
+    : null;
+  const allSelectedEvents = selectedSkill
+    ? events.filter(event => event.module === selectedSkill.module && event.topic === selectedSkill.topic)
+    : [];
+  const selectedEvents = allSelectedEvents.slice(-attemptRange);
+  const firstAttemptNumber = allSelectedEvents.length - selectedEvents.length + 1;
+  const selectedAverage = selectedEvents.length
+    ? Math.round(selectedEvents.reduce((total, event) => total + event.score, 0) / selectedEvents.length)
+    : null;
+  const selectedBest = selectedEvents.length
+    ? Math.max(...selectedEvents.map(event => event.score))
+    : null;
+  const selectedChange = selectedEvents.length > 1
+    ? selectedEvents[selectedEvents.length - 1].score - selectedEvents[0].score
+    : null;
+
   const plotWidth = CHART_WIDTH - CHART_PAD_X * 2;
   const plotHeight = CHART_HEIGHT - CHART_PAD_Y * 2;
-  const activePoints = daily.flatMap((day, index) => day.score === null ? [] : [{
-    x: CHART_PAD_X + (index / Math.max(1, daily.length - 1)) * plotWidth,
-    y: CHART_PAD_Y + ((100 - day.score) / 100) * plotHeight,
-    ...day,
-  }]);
+  const activePoints = selectedEvents.map((event, index) => ({
+    x: selectedEvents.length === 1
+      ? CHART_PAD_X + plotWidth / 2
+      : CHART_PAD_X + (index / (selectedEvents.length - 1)) * plotWidth,
+    y: CHART_PAD_Y + ((100 - event.score) / 100) * plotHeight,
+    event,
+    attemptNumber: firstAttemptNumber + index,
+  }));
   const pointString = activePoints.map(point => `${point.x},${point.y}`).join(' ');
-  const labelEvery = Math.max(1, Math.floor(daily.length / 5));
+  const labelEvery = Math.max(1, Math.floor(selectedEvents.length / 6));
 
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-[radial-gradient(circle_at_top_left,_#ecfeff_0,_transparent_32%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        <header className="flex flex-wrap items-end justify-between gap-4">
+        <header>
           <div>
             <p className="mb-1 text-xs font-bold uppercase tracking-[0.22em] text-teal-700">Practice intelligence</p>
             <h2 className="text-3xl font-bold tracking-tight text-slate-950">Your Progress</h2>
@@ -135,25 +170,12 @@ export function ProgressDashboard() {
               lower the score so improvement reflects recall rather than eventual completion.
             </p>
           </div>
-          <div className="flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-            {[14, 30, 90].map(days => (
-              <button
-                key={days}
-                onClick={() => setRange(days)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  range === days ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100'
-                }`}
-              >
-                {days} days
-              </button>
-            ))}
-          </div>
         </header>
 
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {[
             { label: 'Tracked work', value: events.length, note: `${practicedDays} practice days`, icon: Activity },
-            { label: 'Proficiency', value: events.length ? `${averageScore}%` : '—', note: 'retry weighted', icon: Target },
+            { label: 'Skills tracked', value: skillSummaries.length, note: 'individual trends', icon: Target },
             { label: 'Current streak', value: `${streak}d`, note: 'daily practice', icon: CalendarDays },
             { label: 'Tracked time', value: events.length ? formatDuration(trackedDuration) : '—', note: 'active answers', icon: Clock3 },
             { label: 'Mastered', value: mastered, note: `${due} currently due`, icon: TrendingUp },
@@ -168,26 +190,72 @@ export function ProgressDashboard() {
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h3 className="font-semibold text-slate-900">Proficiency trend</h3>
-              <p className="text-xs text-slate-400">Daily average · 0–100</p>
+              <h3 className="font-semibold text-slate-900">Skill proficiency trend</h3>
+              <p className="text-xs text-slate-400">One point per completed exercise · 0–100</p>
             </div>
-            <p className="text-xs text-slate-400">
-              Lifetime SRS: {lifetimeCorrect}/{lifetimeReviews} correct reviews
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-xs font-semibold text-slate-500" htmlFor="progress-skill">Skill</label>
+              <select
+                id="progress-skill"
+                value={selectedSkillKey ?? ''}
+                onChange={event => setRequestedSkillKey(event.target.value || null)}
+                disabled={selectableSkills.length === 0}
+                className="max-w-[18rem] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-teal-500 disabled:text-slate-300"
+              >
+                {selectableSkills.length === 0 && <option value="">No tracked skills yet</option>}
+                {selectableSkills.map(skill => {
+                  const key = `${skill.module}\u0000${skill.topic}`;
+                  return <option key={key} value={key}>{skill.module} · {skill.topic}</option>;
+                })}
+              </select>
+              <span className="text-xs text-slate-400">Last</span>
+              <div className="flex rounded-lg bg-slate-100 p-1" aria-label="Number of skill attempts to chart">
+                {[10, 25, 50].map(count => (
+                  <button
+                    key={count}
+                    onClick={() => setAttemptRange(count)}
+                    title={`Show the last ${count} attempts`}
+                    className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
+                      attemptRange === count ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-white'
+                    }`}
+                  >
+                    {count}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
+          {selectedSkill && (
+            <div className="mb-4 flex flex-wrap gap-x-6 gap-y-2 rounded-xl bg-slate-50 px-4 py-3 text-xs">
+              <p><span className="text-slate-400">Selected</span> <strong className="ml-1 text-slate-700">{selectedSkill.topic}</strong></p>
+              <p><span className="text-slate-400">Shown average</span> <strong className="ml-1 text-teal-700">{selectedAverage}</strong></p>
+              <p><span className="text-slate-400">Best</span> <strong className="ml-1 text-slate-700">{selectedBest}</strong></p>
+              <p>
+                <span className="text-slate-400">First-to-last</span>{' '}
+                <strong className={`ml-1 ${
+                  selectedChange === null || selectedChange === 0
+                    ? 'text-slate-600'
+                    : selectedChange > 0 ? 'text-emerald-700' : 'text-red-600'
+                }`}>
+                  {selectedChange === null ? '—' : `${selectedChange > 0 ? '+' : ''}${selectedChange}`}
+                </strong>
+              </p>
+              <p><span className="text-slate-400">Lifetime attempts</span> <strong className="ml-1 text-slate-700">{allSelectedEvents.length}</strong></p>
+            </div>
+          )}
           {activePoints.length === 0 ? (
             <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-6 text-center">
               <div>
                 <TrendingUp className="mx-auto mb-3 h-7 w-7 text-slate-300" />
-                <p className="font-medium text-slate-600">Your line begins with the next completed exercise.</p>
-                <p className="mt-1 text-xs text-slate-400">Existing SRS totals are preserved above as a lifetime baseline.</p>
+                <p className="font-medium text-slate-600">A skill line begins with its first completed exercise.</p>
+                <p className="mt-1 text-xs text-slate-400">Lifetime SRS: {lifetimeCorrect}/{lifetimeReviews} correct reviews before detailed tracking.</p>
               </div>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} className="min-w-[620px]" role="img" aria-label="Daily proficiency line chart">
+              <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} className="min-w-[620px]" role="img" aria-label={`${selectedSkill?.topic ?? 'Skill'} attempt score line chart`}>
                 {[0, 25, 50, 75, 100].map(score => {
                   const y = CHART_PAD_Y + ((100 - score) / 100) * plotHeight;
                   return (
@@ -197,20 +265,35 @@ export function ProgressDashboard() {
                     </g>
                   );
                 })}
-                {daily.map((day, index) => {
-                  if (index % labelEvery !== 0 && index !== daily.length - 1) return null;
-                  const x = CHART_PAD_X + (index / Math.max(1, daily.length - 1)) * plotWidth;
-                  return <text key={day.date} x={x} y={CHART_HEIGHT - 5} textAnchor="middle" className="fill-slate-400 text-[10px]">{shortDate(day.date)}</text>;
+                {activePoints.map((point, index) => {
+                  if (index % labelEvery !== 0 && index !== activePoints.length - 1) return null;
+                  return <text key={point.event.id} x={point.x} y={CHART_HEIGHT - 5} textAnchor="middle" className="fill-slate-400 text-[10px]">#{point.attemptNumber}</text>;
                 })}
                 {activePoints.length > 1 && (
                   <polyline points={pointString} fill="none" stroke="#0f766e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                 )}
                 {activePoints.map(point => (
-                  <circle key={point.date} cx={point.x} cy={point.y} r="5" fill="#fff" stroke="#0f766e" strokeWidth="3">
-                    <title>{point.date}: {point.score} proficiency · {point.count} exercises</title>
+                  <circle
+                    key={point.event.id}
+                    cx={point.x}
+                    cy={point.y}
+                    r="5"
+                    fill={point.event.score >= 75 ? '#10b981' : point.event.score >= 50 ? '#f59e0b' : '#ef4444'}
+                    stroke="#fff"
+                    strokeWidth="2"
+                  >
+                    <title>
+                      Attempt {point.attemptNumber} · {shortDate(point.event.practiceDate)} · score {point.event.score} · {point.event.attempts} {point.event.attempts === 1 ? 'try' : 'tries'}
+                    </title>
                   </circle>
                 ))}
               </svg>
+            </div>
+          )}
+          {activePoints.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+              <p>Hover a point for its date, score, and number of tries.</p>
+              <p><span className="text-emerald-600">●</span> 75+ <span className="ml-2 text-amber-500">●</span> 50–74 <span className="ml-2 text-red-500">●</span> below 50</p>
             </div>
           )}
         </section>
@@ -221,12 +304,16 @@ export function ProgressDashboard() {
             skills={strengths}
             tone="strong"
             emptyText="Complete a few exercises to reveal your strongest skills."
+            selectedKey={selectedSkillKey}
+            onSelect={skill => setRequestedSkillKey(`${skill.module}\u0000${skill.topic}`)}
           />
           <SkillList
             title="Needs attention"
             skills={weaknesses}
             tone="weak"
             emptyText="Weaknesses will appear after your first tracked attempts."
+            selectedKey={selectedSkillKey}
+            onSelect={skill => setRequestedSkillKey(`${skill.module}\u0000${skill.topic}`)}
           />
         </section>
 
