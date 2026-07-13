@@ -19,3 +19,14 @@ export function crossesGBBoundary(firstString: number, secondString: number): bo
   return Math.min(firstString, secondString) <= 1
     && Math.max(firstString, secondString) >= 2;
 }
+
+export function isSameGuitarPitch(
+  firstString: number,
+  firstFret: number,
+  secondString: number,
+  secondFret: number
+): boolean {
+  return GUITAR_TUNING[firstString] + firstFret
+    === GUITAR_TUNING[secondString] + secondFret;
+}
+import { GUITAR_TUNING } from './musicTheory';

@@ -3,7 +3,11 @@ import { GUITAR_TUNING, STRING_NAMES, INTERVAL_NAMES } from '../../lib/musicTheo
 import { MiniFretboard, FretDot } from './MiniFretboard';
 import { playHarmonicInterval, playInterval, playIntervalSuccess } from '../../lib/audio';
 import { IntervalAttemptResult, scoreIntervalAttempt } from '../../lib/intervalScoring';
-import { crossesGBBoundary, STANDARD_TUNING_GAPS } from '../../lib/guitarTuningIntervals';
+import {
+  crossesGBBoundary,
+  isSameGuitarPitch,
+  STANDARD_TUNING_GAPS,
+} from '../../lib/guitarTuningIntervals';
 
 export interface IntervalCardData {
   rootStringIndex: number;
@@ -174,8 +178,18 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
     }
   } else if (level === 3) {
     if (flipped) {
-      dots.push({ stringIndex: target.stringIndex, fret: target.fret, type: 'interval' });
-      if (userDot && (userDot.stringIndex !== target.stringIndex || userDot.fret !== target.fret)) {
+      const userPitchIsCorrect = userDot && isSameGuitarPitch(
+        userDot.stringIndex,
+        userDot.fret,
+        target.stringIndex,
+        target.fret
+      );
+      if (userDot && userPitchIsCorrect) {
+        dots.push({ stringIndex: userDot.stringIndex, fret: userDot.fret, type: 'interval' });
+      } else {
+        dots.push({ stringIndex: target.stringIndex, fret: target.fret, type: 'interval' });
+      }
+      if (userDot && !userPitchIsCorrect) {
         dots.push({ stringIndex: userDot.stringIndex, fret: userDot.fret, type: 'wrong' });
       }
     } else if (userDot) {
@@ -278,7 +292,12 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
 
   const handleL3Reveal = () => {
     if (!userDot) return;
-    const correct = userDot.stringIndex === target.stringIndex && userDot.fret === target.fret;
+    const correct = isSameGuitarPitch(
+      userDot.stringIndex,
+      userDot.fret,
+      target.stringIndex,
+      target.fret
+    );
     playAnswerFeedback(correct);
     if (correct) {
       completeCorrectAnswer();
@@ -292,7 +311,12 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
     ? (l2Candidates.find(c => c.stringIndex === l2Selected.stringIndex && c.fret === l2Selected.fret)?.isCorrect ?? false)
     : false;
   const l3IsCorrect = userDot
-    ? userDot.stringIndex === target.stringIndex && userDot.fret === target.fret
+    ? isSameGuitarPitch(
+      userDot.stringIndex,
+      userDot.fret,
+      target.stringIndex,
+      target.fret
+    )
     : false;
   const relevantMistakeCrossesGB = level === 1
     ? l1Answer !== null
