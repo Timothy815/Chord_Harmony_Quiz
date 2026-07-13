@@ -128,7 +128,7 @@ export function FlashcardShell() {
   const [intStrings, setIntStrings] = useState<number[]>(ALL_STRING_INDICES);
   const [showSemitones, setShowSemitones] = useState(true);
   const [showSemitoneRef, setShowSemitoneRef] = useState(false);
-  const [allowPreListen, setAllowPreListen] = useState(false);
+  const [allowPreListen, setAllowPreListen] = useState(true);
 
   // Pitch-class filters
   const [pcDirection, setPcDirection] = useState<'note-to-number' | 'number-to-note' | 'both'>('both');
