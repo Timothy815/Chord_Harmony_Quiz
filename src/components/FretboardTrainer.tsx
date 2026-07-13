@@ -12,6 +12,7 @@ import { playMidiNote } from '../lib/audio';
 import {
   SRSStore, loadStore, saveStore, trainerKey, isDue, reviewTrainerCard,
 } from '../lib/srs';
+import { recordPractice } from '../lib/analytics';
 
 function shuffle<T>(arr: T[]): T[] {
   const next = [...arr];
@@ -269,6 +270,15 @@ export function FretboardTrainer() {
     const previousBest = review.previousBestMs;
     storeRef.current = { ...storeRef.current, [key]: review.record };
     saveStore(storeRef.current);
+    recordPractice({
+      module: 'Fretboard Trainer',
+      topic: currentCombo.shape.name,
+      detail: `${NOTES[currentCombo.root]} ${currentCombo.typeName} ${currentCombo.contentType}`,
+      correct: wasClean,
+      score: Math.round(100 / (finalMissCount + 1)),
+      attempts: finalMissCount + 1,
+      durationMs: elapsedMs,
+    });
     setRoundsCompleted((count) => count + 1);
     if (wasClean) {
       setRoundsClean((count) => count + 1);

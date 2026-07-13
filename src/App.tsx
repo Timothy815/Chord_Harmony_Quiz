@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Music, Play } from 'lucide-react';
+import { BarChart3, Music, Play } from 'lucide-react';
 import { Fretboard } from './components/Fretboard';
 import { Piano } from './components/Piano';
 import { Stave } from './components/Stave';
@@ -8,11 +8,12 @@ import { CircleOfFifths } from './components/CircleOfFifths';
 import { QuizModule } from './components/QuizModule';
 import { FlashcardShell } from './components/flashcards/FlashcardShell';
 import { FretboardTrainer } from './components/FretboardTrainer';
+import { ProgressDashboard } from './components/ProgressDashboard';
 import { findBestVoicingInWindow, FretVal } from './lib/guitarVoicings';
 import { getNoteIndex, GUITAR_TUNING } from './lib/musicTheory';
 import { playStrum } from './lib/audio';
 
-type AppView = 'main' | 'flashcards' | 'trainer';
+type AppView = 'main' | 'flashcards' | 'trainer' | 'progress';
 
 export default function App() {
   const [view, setView] = useState<AppView>('main');
@@ -88,11 +89,11 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-6">
+        <div className="max-w-7xl mx-auto px-4 min-h-16 py-2 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 sm:gap-6">
             <div className="flex items-center gap-2">
               <Music className="w-6 h-6 text-indigo-600" />
-              <h1 className="text-xl font-bold tracking-tight text-gray-900">Harmony Hub</h1>
+              <h1 className="hidden text-xl font-bold tracking-tight text-gray-900 sm:block">Harmony Hub</h1>
             </div>
             <nav className="flex gap-1">
               <button
@@ -112,6 +113,13 @@ export default function App() {
                 className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${view === 'trainer' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}
               >
                 Trainer
+              </button>
+              <button
+                onClick={() => setView('progress')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${view === 'progress' ? 'bg-teal-700 text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}
+              >
+                <BarChart3 className="h-3.5 w-3.5" />
+                Progress
               </button>
             </nav>
           </div>
@@ -145,6 +153,8 @@ export default function App() {
         <FlashcardShell />
       ) : view === 'trainer' ? (
         <FretboardTrainer />
+      ) : view === 'progress' ? (
+        <ProgressDashboard />
       ) : (
         <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
           <section>

@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { GUITAR_TUNING, STRING_NAMES } from '../../lib/musicTheory';
+import { GUITAR_TUNING, INTERVAL_NAMES, STRING_NAMES } from '../../lib/musicTheory';
 import { NoteCard, NoteCardData } from './NoteCard';
 import { IntervalCard, IntervalCardData } from './IntervalCard';
 import { IntervalAttemptResult } from '../../lib/intervalScoring';
+import { PracticeModule, recordPractice } from '../../lib/analytics';
 import { PitchClassCard, PitchClassCardData } from './PitchClassCard';
 import { IntervalNumberCard, IntervalNumberCardData } from './IntervalNumberCard';
 import {
@@ -163,6 +164,7 @@ export function FlashcardShell() {
 
   // SRS state
   const storeRef = useRef<SRSStore>({});
+  const attemptStartedAtRef = useRef(performance.now());
   const [sessionDue, setSessionDue] = useState(0);
   const [sessionNew, setSessionNew] = useState(0);
   const [nextDue, setNextDue] = useState<string | null>(null);
@@ -223,6 +225,7 @@ export function FlashcardShell() {
     setCorrect(0);
     setSeen(0);
     setAutoResult(null);
+    attemptStartedAtRef.current = performance.now();
     setIntervalStats({
       completed: 0,
       totalScore: 0,
@@ -273,6 +276,50 @@ export function FlashcardShell() {
     setNextDue(nextDueAfterToday(storeRef.current));
   };
 
+  const recordAnalytics = (
+    wasCorrect: boolean,
+    options: { score?: number; attempts?: number; assisted?: boolean } = {},
+  ) => {
+    if (!currentCard) return;
+    let module: PracticeModule;
+    let topic: string;
+    let detail: string;
+
+    if (cardMode === 'note') {
+      const card = currentCard as NoteCardData;
+      module = 'Note Cards';
+      topic = `${STRING_NAMES[card.stringIndex]} string notes`;
+      detail = `Fret ${card.fret}`;
+    } else if (cardMode === 'interval') {
+      const card = currentCard as IntervalCardData;
+      module = 'Interval Cards';
+      topic = INTERVAL_NAMES[card.intervalSemitones] ?? `${card.intervalSemitones} semitones`;
+      detail = `${card.direction} · ${STRING_NAMES[card.rootStringIndex]} root · level ${intLevel}`;
+    } else if (cardMode === 'pitch-class') {
+      const card = currentCard as PitchClassCardData;
+      module = 'Note Numbers';
+      topic = card.direction === 'note-to-number' ? 'Note to number' : 'Number to note';
+      detail = `Pitch class ${card.pitchClass}`;
+    } else {
+      const card = currentCard as IntervalNumberCardData;
+      module = 'Interval Numbers';
+      topic = INTERVAL_NAMES[card.semitones] ?? `${card.semitones} semitones`;
+      detail = card.direction;
+    }
+
+    const now = performance.now();
+    recordPractice({
+      module,
+      topic,
+      detail,
+      correct: wasCorrect,
+      score: options.score ?? (wasCorrect ? 100 : 0),
+      attempts: options.attempts ?? 1,
+      durationMs: now - attemptStartedAtRef.current,
+      assisted: options.assisted,
+    });
+  };
+
   const reshuffleCurrentCard = () => {
     const offset = 3 + Math.floor(Math.random() * 3);
     if (cardMode === 'note') {
@@ -301,12 +348,14 @@ export function FlashcardShell() {
   // Auto-scoring: called directly by MC and fretboard-click cards
   const handleAutoCorrect = () => {
     recordSRS(true);
+    recordAnalytics(true);
     setCorrect(c => c + 1);
     setAutoResult('correct');
   };
 
   const handleAutoIncorrect = () => {
     recordSRS(false);
+    recordAnalytics(false);
     reshuffleCurrentCard();
     setAutoResult('incorrect');
   };
@@ -319,6 +368,11 @@ export function FlashcardShell() {
 
   const handleIntervalCorrect = (result: IntervalAttemptResult) => {
     recordSRS(true);
+    recordAnalytics(true, {
+      score: result.score,
+      attempts: result.attempts,
+      assisted: result.usedSample || result.usedShowAnswer,
+    });
     setCorrect((count) => count + 1);
     setAutoResult('correct');
     setIntervalStats((stats) => ({
@@ -337,22 +391,27 @@ export function FlashcardShell() {
     if (autoResult === 'correct') setCurrentIndex(i => i + 1);
     setFlipped(false);
     setAutoResult(null);
+    attemptStartedAtRef.current = performance.now();
   };
 
   // Manual scoring: reveal-only note cards only
   const handleGotIt = () => {
     recordSRS(true);
+    recordAnalytics(true);
     setCorrect(c => c + 1);
     setSeen(s => s + 1);
     setCurrentIndex(i => i + 1);
     setFlipped(false);
+    attemptStartedAtRef.current = performance.now();
   };
 
   const handleTryAgain = () => {
     recordSRS(false);
+    recordAnalytics(false);
     setSeen(s => s + 1);
     reshuffleCurrentCard();
     setFlipped(false);
+    attemptStartedAtRef.current = performance.now();
   };
 
   const toggleNoteString = (s: number) => {

@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NOTES, CHORDS, buildChord, SCALES, buildScale, getMidiFromNoteStrAndOctave } from '../lib/musicTheory';
+import { recordPractice } from '../lib/analytics';
 
 interface QuizModuleProps {
   activeNotes: number[];
@@ -16,6 +17,7 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
   const [hasGuessed, setHasGuessed] = useState<boolean>(false);
   const [allowedChordTypes, setAllowedChordTypes] = useState<string[]>(Object.keys(CHORDS));
   const [showSettings, setShowSettings] = useState<boolean>(false);
+  const questionStartedAtRef = useRef(performance.now());
 
   const toggleChordType = (type: string) => {
     setAllowedChordTypes(prev => {
@@ -42,6 +44,7 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
     onClearNotes();
     setFeedback(null);
     setHasGuessed(false);
+    questionStartedAtRef.current = performance.now();
     const roots = NOTES.slice(0, 12);
     const randomRoot = roots[Math.floor(Math.random() * roots.length)];
     const chordTypes = allowedChordTypes.length > 0 ? allowedChordTypes : Object.keys(CHORDS);
@@ -85,7 +88,20 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
     const targetPitchClasses = [...new Set(targetNotesMidi.map(n => n % 12))].sort((a: number, b: number) => a - b);
     const activePitchClasses = [...new Set(activeNotes.map(n => n % 12))].sort((a: number, b: number) => a - b);
     
-    if (targetPitchClasses.length === activePitchClasses.length && targetPitchClasses.every((v, i) => v === activePitchClasses[i])) {
+    const isCorrect = targetPitchClasses.length === activePitchClasses.length
+      && targetPitchClasses.every((v, i) => v === activePitchClasses[i]);
+    recordPractice({
+      module: 'Chord Quiz',
+      topic: targetChord?.chord ?? 'Chord building',
+      detail: targetChord ? `${targetChord.root} · build` : 'Build chord',
+      correct: isCorrect,
+      score: isCorrect ? 100 : 0,
+      attempts: 1,
+      durationMs: performance.now() - questionStartedAtRef.current,
+    });
+    questionStartedAtRef.current = performance.now();
+
+    if (isCorrect) {
       // Check if it's the exact root inversion based on lowest note
       const lowestMidi = Math.min(...activeNotes);
       const isRootPosition = (lowestMidi % 12) === (targetNotesMidi[0] % 12);
@@ -169,7 +185,17 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
                       disabled={hasGuessed}
                       onClick={() => {
                           setHasGuessed(true);
-                          if (guess === `${targetChord.root} ${targetChord.chord}`) {
+                          const isCorrect = guess === `${targetChord.root} ${targetChord.chord}`;
+                          recordPractice({
+                            module: 'Chord Quiz',
+                            topic: targetChord.chord,
+                            detail: `${targetChord.root} · identify`,
+                            correct: isCorrect,
+                            score: isCorrect ? 100 : 0,
+                            attempts: 1,
+                            durationMs: performance.now() - questionStartedAtRef.current,
+                          });
+                          if (isCorrect) {
                               setFeedback("Correct! Well done.");
                           } else {
                               setFeedback(`Incorrect. The correct answer was ${targetChord.root} ${targetChord.chord}.`);
@@ -258,4 +284,3 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes }: Quiz
     </div>
   );
 }
-
