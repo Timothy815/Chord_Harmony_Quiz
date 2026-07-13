@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { GUITAR_TUNING, STRING_NAMES, INTERVAL_NAMES } from '../../lib/musicTheory';
 import { MiniFretboard, FretDot } from './MiniFretboard';
 import { playHarmonicInterval, playInterval, playIntervalSuccess } from '../../lib/audio';
+import { IntervalAttemptResult, scoreIntervalAttempt } from '../../lib/intervalScoring';
 
 export interface IntervalCardData {
   rootStringIndex: number;
@@ -17,7 +18,7 @@ interface IntervalCardProps {
   showSemitones?: boolean;
   allowPreListen?: boolean;
   onFlip: () => void;
-  onCorrect: () => void;
+  onCorrect: (result: IntervalAttemptResult) => void;
   onIncorrect: () => void;
 }
 
@@ -98,6 +99,11 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
   const [userDot, setUserDot] = useState<{ stringIndex: number; fret: number } | null>(null);
   const [produceWrong, setProduceWrong] = useState(false);
   const [answerRevealed, setAnswerRevealed] = useState(false);
+  const [usedShowAnswer, setUsedShowAnswer] = useState(false);
+  const [mistakes, setMistakes] = useState(0);
+  const [usedSample, setUsedSample] = useState(false);
+  const [selfVerified, setSelfVerified] = useState(false);
+  const [finalResult, setFinalResult] = useState<IntervalAttemptResult | null>(null);
 
   const target = useMemo(
     () => findTarget(card.rootStringIndex, card.rootFret, card.intervalSemitones, card.direction),
@@ -192,14 +198,30 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
   };
   const playUserAnswer = () => {
     if (!userDot) return;
+    setSelfVerified(true);
     const userMidi = GUITAR_TUNING[userDot.stringIndex] + userDot.fret;
     void playInterval(rootMidi, userMidi);
+  };
+
+  const completeCorrectAnswer = () => {
+    const result = scoreIntervalAttempt(mistakes, usedSample, selfVerified, usedShowAnswer);
+    setFinalResult(result);
+    onFlip();
+    onCorrect(result);
+  };
+
+  const recordMistake = () => {
+    setMistakes((count) => count + 1);
+    onIncorrect();
   };
 
   const soundButtons = (replay = false) => (
     <div className="flex justify-center gap-2">
       <button
-        onClick={playCurrentInterval}
+        onClick={() => {
+          if (!replay) setUsedSample(true);
+          playCurrentInterval();
+        }}
         aria-label={`${replay ? 'Replay' : 'Hear'} interval melodically`}
         className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 text-indigo-700 text-sm font-medium hover:bg-indigo-100 transition-colors"
       >
@@ -207,7 +229,10 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
         Melodic
       </button>
       <button
-        onClick={playCurrentIntervalHarmonically}
+        onClick={() => {
+          if (!replay) setUsedSample(true);
+          playCurrentIntervalHarmonically();
+        }}
         aria-label={`${replay ? 'Replay' : 'Hear'} interval harmonically`}
         className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 text-amber-800 text-sm font-medium hover:bg-amber-100 transition-colors"
       >
@@ -222,10 +247,9 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
     setL1Answer(semitones);
     playAnswerFeedback(correct);
     if (correct) {
-      onFlip();
-      onCorrect();
+      completeCorrectAnswer();
     } else {
-      onIncorrect();
+      recordMistake();
     }
   };
 
@@ -237,10 +261,9 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
     setAnswerRevealed(false);
     playAnswerFeedback(candidate.isCorrect);
     if (candidate.isCorrect) {
-      onFlip();
-      onCorrect();
+      completeCorrectAnswer();
     } else {
-      onIncorrect();
+      recordMistake();
     }
   };
 
@@ -256,11 +279,10 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
     const correct = userDot.stringIndex === target.stringIndex && userDot.fret === target.fret;
     playAnswerFeedback(correct);
     if (correct) {
-      onFlip();
-      onCorrect();
+      completeCorrectAnswer();
     } else {
       setProduceWrong(true);
-      onIncorrect();
+      recordMistake();
     }
   };
 
@@ -271,7 +293,7 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
     ? userDot.stringIndex === target.stringIndex && userDot.fret === target.fret
     : false;
 
-  const answered = level === 1 ? flipped : level === 2 ? l2Selected !== null : flipped;
+  const answered = flipped;
 
   return (
     <div className="bg-white rounded-xl border border-indigo-100 shadow-md p-6">
@@ -368,7 +390,10 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
       {!flipped && ((level === 2 && l2Selected && !l2IsCorrect) || (level === 3 && produceWrong)) && (
         <div className="flex justify-center mt-3">
           <button
-            onClick={() => setAnswerRevealed(true)}
+            onClick={() => {
+              setAnswerRevealed(true);
+              setUsedShowAnswer(true);
+            }}
             disabled={answerRevealed}
             className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-default transition-colors"
           >
@@ -414,6 +439,18 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
           {l3IsCorrect
             ? '✓ Correct!'
             : '✗ Not quite. Listen to your answer, move the dot, and try again.'}
+        </div>
+      )}
+      {flipped && finalResult && (
+        <div className="mt-3 text-center text-xs text-gray-500">
+          <span className="font-semibold text-indigo-700">{finalResult.score} points</span>
+          {' · '}{finalResult.attempts} {finalResult.attempts === 1 ? 'attempt' : 'attempts'}
+          {' · '}{finalResult.usedShowAnswer
+            ? 'Assisted'
+            : finalResult.usedSample
+              ? 'Audio-assisted'
+              : 'Independent'}
+          {finalResult.selfVerified ? ' · Self-verified' : ''}
         </div>
       )}
     </div>

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { GUITAR_TUNING, STRING_NAMES } from '../../lib/musicTheory';
 import { NoteCard, NoteCardData } from './NoteCard';
 import { IntervalCard, IntervalCardData } from './IntervalCard';
+import { IntervalAttemptResult } from '../../lib/intervalScoring';
 import { PitchClassCard, PitchClassCardData } from './PitchClassCard';
 import { IntervalNumberCard, IntervalNumberCardData } from './IntervalNumberCard';
 import {
@@ -150,6 +151,14 @@ export function FlashcardShell() {
   const [correct, setCorrect] = useState(0);
   const [seen, setSeen] = useState(0);
   const [autoResult, setAutoResult] = useState<'correct' | 'incorrect' | null>(null);
+  const [intervalStats, setIntervalStats] = useState({
+    completed: 0,
+    totalScore: 0,
+    firstTry: 0,
+    audioAssisted: 0,
+    selfVerified: 0,
+    answerShown: 0,
+  });
 
   // SRS state
   const storeRef = useRef<SRSStore>({});
@@ -213,6 +222,14 @@ export function FlashcardShell() {
     setCorrect(0);
     setSeen(0);
     setAutoResult(null);
+    setIntervalStats({
+      completed: 0,
+      totalScore: 0,
+      firstTry: 0,
+      audioAssisted: 0,
+      selfVerified: 0,
+      answerShown: 0,
+    });
   }, [buildAndSetDecks]);
 
   // Restart when mode tab changes
@@ -297,6 +314,20 @@ export function FlashcardShell() {
   const handleIntervalIncorrect = () => {
     recordSRS(false);
     setAutoResult(null);
+  };
+
+  const handleIntervalCorrect = (result: IntervalAttemptResult) => {
+    recordSRS(true);
+    setCorrect((count) => count + 1);
+    setAutoResult('correct');
+    setIntervalStats((stats) => ({
+      completed: stats.completed + 1,
+      totalScore: stats.totalScore + result.score,
+      firstTry: stats.firstTry + (result.firstTry ? 1 : 0),
+      audioAssisted: stats.audioAssisted + (result.usedSample ? 1 : 0),
+      selfVerified: stats.selfVerified + (result.selfVerified ? 1 : 0),
+      answerShown: stats.answerShown + (result.usedShowAnswer ? 1 : 0),
+    }));
   };
 
   // Advance after auto-scored card
@@ -400,6 +431,12 @@ export function FlashcardShell() {
             </span>
           )}
           <span className="text-gray-500 font-medium">{correct} / {seen}</span>
+          {cardMode === 'interval' && intervalStats.completed > 0 && (
+            <span className="text-xs text-indigo-600 font-medium">
+              First try {intervalStats.firstTry}/{intervalStats.completed}
+              {' · '}Score {Math.round(intervalStats.totalScore / intervalStats.completed)}
+            </span>
+          )}
           <button
             onClick={() => setShowFilters(f => !f)}
             className="text-indigo-600 hover:text-indigo-800 font-medium"
@@ -758,6 +795,19 @@ export function FlashcardShell() {
         <div className="text-center py-16">
           <p className="text-2xl font-bold text-indigo-700 mb-2">Session Complete!</p>
           <p className="text-gray-500 mb-1">{correct} / {seen} correct</p>
+          {cardMode === 'interval' && intervalStats.completed > 0 && (
+            <div className="text-sm text-gray-500 mb-3 space-y-1">
+              <p>
+                First try: {intervalStats.firstTry} / {intervalStats.completed}
+                {' · '}Average score: {Math.round(intervalStats.totalScore / intervalStats.completed)}
+              </p>
+              <p className="text-xs text-gray-400">
+                Audio-assisted: {intervalStats.audioAssisted}
+                {' · '}Self-verified: {intervalStats.selfVerified}
+                {' · '}Answers shown: {intervalStats.answerShown}
+              </p>
+            </div>
+          )}
           {(sessionDue > 0 || sessionNew > 0) && (
             <p className="text-sm text-gray-400 mb-1">
               {[
@@ -804,7 +854,7 @@ export function FlashcardShell() {
               showSemitones={showSemitones}
               allowPreListen={allowPreListen}
               onFlip={handleFlip}
-              onCorrect={handleAutoCorrect}
+              onCorrect={handleIntervalCorrect}
               onIncorrect={handleIntervalIncorrect}
             />
           ) : cardMode === 'pitch-class' ? (
