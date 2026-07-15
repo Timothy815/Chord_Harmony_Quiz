@@ -23,6 +23,7 @@ interface IntervalCardProps {
   showSemitones?: boolean;
   allowPreListen?: boolean;
   showTuningIntervals?: boolean;
+  fullIdentifyChoices?: boolean;
   onFlip: () => void;
   onCorrect: (result: IntervalAttemptResult) => void;
   onIncorrect: () => void;
@@ -99,7 +100,7 @@ function computeWindow(
   };
 }
 
-export function IntervalCard({ card, level, flipped, showSemitones = false, allowPreListen = false, showTuningIntervals = false, onFlip, onCorrect, onIncorrect }: IntervalCardProps) {
+export function IntervalCard({ card, level, flipped, showSemitones = false, allowPreListen = false, showTuningIntervals = false, fullIdentifyChoices = false, onFlip, onCorrect, onIncorrect }: IntervalCardProps) {
   const [l1Answer, setL1Answer] = useState<number | null>(null);
   const [l2Selected, setL2Selected] = useState<{ stringIndex: number; fret: number } | null>(null);
   const [userDot, setUserDot] = useState<{ stringIndex: number; fret: number } | null>(null);
@@ -128,13 +129,16 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
   const boardEndFret = 12;
 
   const l1Options = useMemo(() => {
+    if (fullIdentifyChoices) {
+      return [...ALL_INTERVAL_OPTIONS].sort(() => Math.random() - 0.5);
+    }
     const others = ALL_INTERVAL_OPTIONS
       .filter(o => o.semitones !== card.intervalSemitones)
       .sort(() => Math.random() - 0.5)
       .slice(0, 3);
     return [{ semitones: card.intervalSemitones, name: correctName }, ...others]
       .sort(() => Math.random() - 0.5);
-  }, [card]);
+  }, [card, fullIdentifyChoices]);
 
   const l2Candidates = useMemo(() => {
     const correct = { stringIndex: target.stringIndex, fret: target.fret, isCorrect: true };
@@ -413,7 +417,7 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
 
       {/* Level 1: multiple choice */}
       {level === 1 && !flipped && (
-        <div className="grid grid-cols-2 gap-2 max-w-xs mx-auto">
+        <div className={`grid gap-2 mx-auto ${fullIdentifyChoices ? 'grid-cols-3 sm:grid-cols-4 max-w-xl' : 'grid-cols-2 max-w-xs'}`}>
           {l1Options.map(opt => (
             <button
               key={opt.semitones}

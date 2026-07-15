@@ -140,6 +140,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
       : targetParts[1] === 'scale-run' ? 'scale-run' : 'shape-map'
   );
   const [showStepPattern, setShowStepPattern] = useState(false);
+  const [scaleRunAllNotes, setScaleRunAllNotes] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [roots, setRoots] = useState<number[]>(ALL_ROOTS);
   const [contentTypes, setContentTypes] = useState<ContentType[]>(targetContentType ? [targetContentType] : ['scale', 'chord']);
@@ -168,6 +169,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
   const roundStartedAtRef = useRef(0);
   const showStepPatternRef = useRef(showStepPattern);
   const usedStepPatternInRoundRef = useRef(false);
+  const usedLimitedPoolInRoundRef = useRef(false);
   const cellElementsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const missFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -195,7 +197,9 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
       const cells = cellsForCombo(combo, trainerMode);
 
       if (cells.length > 0) {
-        const uniquePitchClasses = Array.from(new Set(cells.map((cell) => cell.pitchClass)));
+        const uniquePitchClasses = trainerMode === 'scale-run' && scaleRunAllNotes
+          ? ALL_ROOTS
+          : Array.from(new Set(cells.map((cell) => cell.pitchClass)));
         setCurrentCombo(combo);
         setFilteredCells(cells);
         setNoteTokens(uniquePitchClasses.map((pitchClass) => ({ pitchClass, label: NOTES[pitchClass] })));
@@ -208,6 +212,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
         setNoValidCombos(false);
         setSessionComplete(false);
         usedStepPatternInRoundRef.current = trainerMode === 'scale-run' && showStepPatternRef.current;
+        usedLimitedPoolInRoundRef.current = trainerMode === 'scale-run' && !scaleRunAllNotes;
         roundStartedAtRef.current = performance.now();
         return;
       }
@@ -219,7 +224,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
     setFilledKeys(new Set());
     setDeck([]);
     setSessionComplete(true);
-  }, [trainerMode]);
+  }, [trainerMode, scaleRunAllNotes]);
 
   const restart = useCallback(() => {
     const store = loadStore();
@@ -319,7 +324,8 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
       score: Math.round(100 / (finalMissCount + 1)),
       attempts: finalMissCount + 1,
       durationMs: elapsedMs,
-      assisted: trainerMode === 'scale-run' && usedStepPatternInRoundRef.current,
+      assisted: trainerMode === 'scale-run'
+        && (usedStepPatternInRoundRef.current || usedLimitedPoolInRoundRef.current),
     });
     setRoundsCompleted((count) => count + 1);
     if (wasClean) {
@@ -570,19 +576,30 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
           )}
 
           {trainerMode === 'scale-run' && (
-            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showStepPattern}
-                onChange={event => {
-                  showStepPatternRef.current = event.target.checked;
-                  if (event.target.checked) usedStepPatternInRoundRef.current = true;
-                  setShowStepPattern(event.target.checked);
-                }}
-                className="rounded"
-              />
-              Show whole-step / half-step pattern
-            </label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={scaleRunAllNotes}
+                  onChange={event => setScaleRunAllNotes(event.target.checked)}
+                  className="rounded"
+                />
+                Use all 12 chromatic notes (challenge)
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showStepPattern}
+                  onChange={event => {
+                    showStepPatternRef.current = event.target.checked;
+                    if (event.target.checked) usedStepPatternInRoundRef.current = true;
+                    setShowStepPattern(event.target.checked);
+                  }}
+                  className="rounded"
+                />
+                Show whole-step / half-step pattern
+              </label>
+            </div>
           )}
 
           {trainerMode === 'shape-map' && contentTypes.includes('chord') && (
@@ -698,6 +715,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
           {trainerMode === 'scale-run' && (
             <p className="mt-2 text-center text-xs text-slate-500">
               Place the scale from its lowest root to the next root. Correct locations are hidden.
+              {' · '}{scaleRunAllNotes ? 'All 12 notes available.' : 'Scale-tone pool enabled (assisted).'}
             </p>
           )}
 

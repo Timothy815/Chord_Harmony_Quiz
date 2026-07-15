@@ -12,6 +12,7 @@ interface NoteCardProps {
   card: NoteCardData;
   flipped: boolean;
   multipleChoice: boolean;
+  fullChoices?: boolean;
   onFlip: () => void;
   onCorrect: () => void;
   onIncorrect: () => void;
@@ -25,15 +26,17 @@ function getDistractors(correctMidi: number): string[] {
     .slice(0, 3);
 }
 
-export function NoteCard({ card, flipped, multipleChoice, onFlip, onCorrect, onIncorrect }: NoteCardProps) {
+export function NoteCard({ card, flipped, multipleChoice, fullChoices = false, onFlip, onCorrect, onIncorrect }: NoteCardProps) {
   const midi = GUITAR_TUNING[card.stringIndex] + card.fret;
   const { note, octave } = midiToNoteString(midi);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
 
   const distractors = useMemo(() => getDistractors(midi), [midi]);
   const options = useMemo(
-    () => [note, ...distractors].sort(() => Math.random() - 0.5),
-    [note, distractors]
+    () => fullChoices
+      ? [...NOTES].sort(() => Math.random() - 0.5)
+      : [note, ...distractors].sort(() => Math.random() - 0.5),
+    [note, distractors, fullChoices]
   );
 
   useEffect(() => {
@@ -60,7 +63,7 @@ export function NoteCard({ card, flipped, multipleChoice, onFlip, onCorrect, onI
             <p className="text-6xl font-bold text-indigo-600">{card.fret}</p>
           </div>
           {multipleChoice ? (
-            <div className="grid grid-cols-2 gap-3 w-full max-w-xs">
+            <div className={`grid gap-2 w-full ${fullChoices ? 'grid-cols-4 max-w-sm' : 'grid-cols-2 max-w-xs'}`}>
               {options.map(opt => (
                 <button
                   key={opt}

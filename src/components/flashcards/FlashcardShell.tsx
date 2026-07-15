@@ -187,6 +187,7 @@ export function FlashcardShell({
   const [fretMode, setFretMode] = useState<'range' | 'landmark' | 'position'>('range');
   const [positionFret, setPositionFret] = useState(5);
   const [multipleChoice, setMultipleChoice] = useState(false);
+  const [noteFullChoices, setNoteFullChoices] = useState(true);
 
   // Interval filters
   const [intLevel, setIntLevel] = useState<1 | 2 | 3>(
@@ -204,6 +205,7 @@ export function FlashcardShell({
   const [showTuningIntervals, setShowTuningIntervals] = useState(
     !practiceTarget?.topic.includes('· Produce ·')
   );
+  const [intFullChoices, setIntFullChoices] = useState(true);
 
   // Pitch-class filters
   const [pcDirection, setPcDirection] = useState<'note-to-number' | 'number-to-note' | 'both'>(
@@ -211,7 +213,7 @@ export function FlashcardShell({
       : practiceTarget?.topic === 'Number to note' ? 'number-to-note' : 'both'
   );
   const [pcMultipleChoice, setPcMultipleChoice] = useState(true);
-  const [pcFullChoices, setPcFullChoices] = useState(false);
+  const [pcFullChoices, setPcFullChoices] = useState(true);
 
   // Interval-number filters
   const [inDirection, setInDirection] = useState<'name-to-number' | 'number-to-name' | 'both'>(
@@ -219,7 +221,7 @@ export function FlashcardShell({
       : practiceTarget?.topic.endsWith('· Number to name') ? 'number-to-name' : 'both'
   );
   const [inMultipleChoice, setInMultipleChoice] = useState(true);
-  const [inFullChoices, setInFullChoices] = useState(false);
+  const [inFullChoices, setInFullChoices] = useState(true);
 
   // Note-transposition filters
   const [ntIntervals, setNtIntervals] = useState<number[]>(initialInterval === null ? DEFAULT_INTERVALS : [initialInterval]);
@@ -487,7 +489,11 @@ export function FlashcardShell({
       score: options.score ?? (wasCorrect ? 100 : 0),
       attempts: options.attempts ?? 1,
       durationMs: options.durationMs ?? currentAttemptDuration(now),
-      assisted: options.assisted,
+      assisted: options.assisted ?? (
+        (cardMode === 'note' && multipleChoice && !noteFullChoices)
+        || (cardMode === 'pitch-class' && pcMultipleChoice && !pcFullChoices)
+        || (cardMode === 'interval-number' && inMultipleChoice && !inFullChoices)
+      ),
     });
   };
 
@@ -576,7 +582,8 @@ export function FlashcardShell({
     recordAnalytics(true, {
       score: result.score,
       attempts: result.attempts,
-      assisted: result.usedSample || result.usedShowAnswer,
+      assisted: result.usedSample || result.usedShowAnswer
+        || (cardMode === 'interval' && intLevel === 1 && !intFullChoices),
     });
     setCorrect((count) => count + 1);
     setAutoResult('correct');
@@ -879,6 +886,16 @@ export function FlashcardShell({
                 />
                 Multiple choice mode
               </label>
+              {multipleChoice && (
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer ml-4">
+                  <input
+                    type="checkbox" checked={noteFullChoices}
+                    onChange={e => setNoteFullChoices(e.target.checked)}
+                    className="rounded"
+                  />
+                  Show all 12 choices (harder)
+                </label>
+              )}
             </>
           ) : cardMode === 'interval' ? (
             <>
@@ -950,14 +967,24 @@ export function FlashcardShell({
                 </div>
               </div>
               {intLevel === 1 && (
-                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                  <input
-                    type="checkbox" checked={showSemitones}
-                    onChange={e => setShowSemitones(e.target.checked)}
-                    className="rounded"
-                  />
-                  Show semitone counts on choices
-                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                    <input
+                      type="checkbox" checked={intFullChoices}
+                      onChange={e => setIntFullChoices(e.target.checked)}
+                      className="rounded"
+                    />
+                    Show all 12 interval choices (harder)
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                    <input
+                      type="checkbox" checked={showSemitones}
+                      onChange={e => setShowSemitones(e.target.checked)}
+                      className="rounded"
+                    />
+                    Show semitone counts on choices
+                  </label>
+                </div>
               )}
               <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
                 <input
@@ -1282,6 +1309,7 @@ export function FlashcardShell({
               card={currentCard as NoteCardData}
               flipped={flipped}
               multipleChoice={multipleChoice}
+              fullChoices={noteFullChoices}
               onFlip={handleFlip}
               onCorrect={multipleChoice ? handleAutoCorrect : () => {}}
               onIncorrect={multipleChoice ? handleAutoIncorrect : () => {}}
@@ -1295,6 +1323,7 @@ export function FlashcardShell({
               showSemitones={showSemitones}
               allowPreListen={allowPreListen}
               showTuningIntervals={showTuningIntervals}
+              fullIdentifyChoices={intFullChoices}
               onFlip={handleFlip}
               onCorrect={handleIntervalCorrect}
               onIncorrect={handleIntervalIncorrect}

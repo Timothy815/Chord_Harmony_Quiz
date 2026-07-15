@@ -93,6 +93,7 @@ export function ChordConstructionTrainer({ practiceTarget }: { practiceTarget?: 
   const [shapeNames, setShapeNames] = useState<string[]>(CAGED_ANCHORS.map(shape => shape.name));
   const [showFormula, setShowFormula] = useState(false);
   const [showRoots, setShowRoots] = useState(true);
+  const [useAllNotes, setUseAllNotes] = useState(true);
 
   const [deck, setDeck] = useState<ChordConstructionChallenge[]>([]);
   const [current, setCurrent] = useState<ChordConstructionChallenge | null>(null);
@@ -115,6 +116,7 @@ export function ChordConstructionTrainer({ practiceTarget }: { practiceTarget?: 
   const showFormulaRef = useRef(showFormula);
   const usedRootHintRef = useRef(showRoots);
   const showRootsRef = useRef(showRoots);
+  const usedLimitedPoolRef = useRef(!useAllNotes);
   const cellElementsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const missTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -181,8 +183,9 @@ export function ChordConstructionTrainer({ practiceTarget }: { practiceTarget?: 
     setSessionComplete(false);
     usedFormulaRef.current = showFormulaRef.current;
     usedRootHintRef.current = showRootsRef.current;
+    usedLimitedPoolRef.current = !useAllNotes;
     roundStartedAtRef.current = performance.now();
-  }, []);
+  }, [useAllNotes]);
 
   const restart = useCallback(() => {
     const store = loadStore();
@@ -239,7 +242,7 @@ export function ChordConstructionTrainer({ practiceTarget }: { practiceTarget?: 
       score: Math.round(100 / (finalMissCount + 1)),
       attempts: finalMissCount + 1,
       durationMs: elapsedMs,
-      assisted: usedFormulaRef.current || usedRootHintRef.current,
+      assisted: usedFormulaRef.current || usedRootHintRef.current || usedLimitedPoolRef.current,
     });
     setRoundsCompleted(count => count + 1);
     if (clean) setRoundsClean(count => count + 1);
@@ -307,10 +310,12 @@ export function ChordConstructionTrainer({ practiceTarget }: { practiceTarget?: 
       }
     }
   }
-  const tokens = current ? constructionIntervals(current).map(interval => ({
-    interval,
-    pitchClass: (current.root + interval) % 12,
-  })) : [];
+  const tokens = current ? (useAllNotes
+    ? ROOTS.map(pitchClass => ({ interval: pitchClass, pitchClass }))
+    : constructionIntervals(current).map(interval => ({
+      interval,
+      pitchClass: (current.root + interval) % 12,
+    }))) : [];
 
   return (
     <div>
@@ -347,6 +352,7 @@ export function ChordConstructionTrainer({ practiceTarget }: { practiceTarget?: 
           <FilterGroup label="Fretboard Position">{CAGED_ANCHORS.map(shape => <FilterButton key={shape.name} active={shapeNames.includes(shape.name)} onClick={() => toggle(shapeNames, shape.name, setShapeNames)}>{shape.name}</FilterButton>)}</FilterGroup>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={showFormula} onChange={event => { showFormulaRef.current = event.target.checked; setShowFormula(event.target.checked); if (event.target.checked) usedFormulaRef.current = true; }} /> Show interval formula</label>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={showRoots} onChange={event => { showRootsRef.current = event.target.checked; setShowRoots(event.target.checked); if (event.target.checked) usedRootHintRef.current = true; }} /> Show root locations</label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={useAllNotes} onChange={event => { setUseAllNotes(event.target.checked); if (!event.target.checked) usedLimitedPoolRef.current = true; }} /> Use all 12 chromatic notes (challenge)</label>
           <button onClick={restart} className="rounded bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700">Apply &amp; Restart</button>
         </div>
       )}
@@ -365,7 +371,7 @@ export function ChordConstructionTrainer({ practiceTarget }: { practiceTarget?: 
               </div>
             </div>
             <TrainerFretboard key={roundId} cells={cells} startFret={range.startFret} endFret={range.endFret} filledKeys={filledKeys} missedKey={missedKey} onCellClick={handleCellClick} registerCellElement={registerCellElement} showTargets={false} referenceKeys={rootReferenceKeys} referenceLabel={NOTES[current.root]} />
-            <p className="mt-2 text-center text-xs text-slate-500">Use each required chord tone once on the specified strings. {showRoots ? 'Amber markers show the root; other locations remain hidden.' : 'Correct locations are hidden.'}</p>
+            <p className="mt-2 text-center text-xs text-slate-500">Use each required chord tone once on the specified strings. {showRoots ? 'Amber markers show the root; other locations remain hidden.' : 'Correct locations are hidden.'} {' · '}{useAllNotes ? 'All 12 notes available.' : 'Chord-tone pool enabled (assisted).'}</p>
             <div className="mt-6 flex flex-wrap justify-center gap-3">{tokens.map(token => <NoteToken key={token.interval} pitchClass={token.pitchClass} label={NOTES[token.pitchClass]} selected={selectedPitchClass === token.pitchClass} onTap={pitchClass => setSelectedPitchClass(value => value === pitchClass ? null : pitchClass)} onDragEnd={handleDragEnd} />)}</div>
           </div> : <div className="py-16 text-center text-slate-400">Loading…</div>}
     </div>
