@@ -1,15 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { GUITAR_TUNING, INTERVAL_NAMES, STRING_NAMES } from '../../lib/musicTheory';
+import { GUITAR_TUNING, INTERVAL_NAMES, NOTES, STRING_NAMES } from '../../lib/musicTheory';
 import { NoteCard, NoteCardData } from './NoteCard';
 import { IntervalCard, IntervalCardData } from './IntervalCard';
 import { IntervalAttemptResult } from '../../lib/intervalScoring';
 import { PracticeModule, PracticeTarget, recordPractice } from '../../lib/analytics';
 import { PitchClassCard, PitchClassCardData } from './PitchClassCard';
 import { IntervalNumberCard, IntervalNumberCardData } from './IntervalNumberCard';
+import { NoteTranspositionCard, NoteTranspositionCardData } from './NoteTranspositionCard';
 import {
   SRSStore, CardRecord,
   loadStore, saveStore,
-  noteKey, intervalKey, pitchClassKey, intervalNumberKey,
+  noteKey, intervalKey, pitchClassKey, intervalNumberKey, noteTranspositionKey,
   isDue, nextDueAfterToday, reviewCard,
 } from '../../lib/srs';
 
@@ -73,6 +74,21 @@ function generateIntervalCandidates(
   return cards;
 }
 
+function generateNoteTranspositionCandidates(
+  intervals: number[], direction: 'up' | 'down' | 'both',
+): NoteTranspositionCardData[] {
+  const directions: ('up' | 'down')[] = direction === 'both' ? ['up', 'down'] : [direction];
+  return Array.from({ length: 12 }, (_, rootPitchClass) => rootPitchClass).flatMap(rootPitchClass =>
+    intervals.flatMap(intervalSemitones =>
+      directions.map(cardDirection => ({
+        rootPitchClass,
+        intervalSemitones,
+        direction: cardDirection,
+      }))
+    )
+  );
+}
+
 interface SRSResult<T> {
   deck: T[];
   dueCount: number;
@@ -111,6 +127,8 @@ const INTERVAL_OPTIONS = [
   { s: 10, n: 'Min 7th' }, { s: 11, n: 'Maj 7th' }, { s: 12, n: 'Octave' },
 ];
 
+type CardMode = 'note' | 'interval' | 'pitch-class' | 'interval-number' | 'note-transposition';
+
 function targetInterval(target: PracticeTarget | undefined): number | null {
   if (!target) return null;
   return INTERVAL_OPTIONS.find(option => target.topic.startsWith(option.n))?.s ?? null;
@@ -126,10 +144,11 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
   const initialMode = practiceTarget?.module === 'Interval Cards' ? 'interval'
     : practiceTarget?.module === 'Note Numbers' ? 'pitch-class'
       : practiceTarget?.module === 'Interval Numbers' ? 'interval-number'
+        : practiceTarget?.module === 'Note Transposition' ? 'note-transposition'
         : 'note';
   const initialInterval = targetInterval(practiceTarget);
   const initialString = targetString(practiceTarget);
-  const [cardMode, setCardMode] = useState<'note' | 'interval' | 'pitch-class' | 'interval-number'>(initialMode);
+  const [cardMode, setCardMode] = useState<CardMode>(initialMode);
   const [showFilters, setShowFilters] = useState(false);
 
   // Note filters
@@ -173,11 +192,20 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
   const [inMultipleChoice, setInMultipleChoice] = useState(true);
   const [inFullChoices, setInFullChoices] = useState(false);
 
+  // Note-transposition filters
+  const [ntIntervals, setNtIntervals] = useState<number[]>(initialInterval === null ? DEFAULT_INTERVALS : [initialInterval]);
+  const [ntDirection, setNtDirection] = useState<'up' | 'down' | 'both'>(
+    practiceTarget?.topic.endsWith('· Down') ? 'down'
+      : 'up'
+  );
+  const [ntShowSemitones, setNtShowSemitones] = useState(false);
+
   // Session state
   const [noteDeck, setNoteDeck] = useState<NoteCardData[]>([]);
   const [intervalDeck, setIntervalDeck] = useState<IntervalCardData[]>([]);
   const [pcDeck, setPcDeck] = useState<PitchClassCardData[]>([]);
   const [inDeck, setInDeck] = useState<IntervalNumberCardData[]>([]);
+  const [ntDeck, setNtDeck] = useState<NoteTranspositionCardData[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [correct, setCorrect] = useState(0);
@@ -200,11 +228,12 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
   const [sessionNew, setSessionNew] = useState(0);
   const [nextDue, setNextDue] = useState<string | null>(null);
 
-  const deck: (NoteCardData | IntervalCardData | PitchClassCardData | IntervalNumberCardData)[] =
+  const deck: (NoteCardData | IntervalCardData | PitchClassCardData | IntervalNumberCardData | NoteTranspositionCardData)[] =
     cardMode === 'note' ? noteDeck
       : cardMode === 'interval' ? intervalDeck
       : cardMode === 'pitch-class' ? pcDeck
-      : inDeck;
+      : cardMode === 'interval-number' ? inDeck
+      : ntDeck;
 
   const buildAndSetDecks = useCallback((store: SRSStore) => {
     storeRef.current = store;
@@ -238,15 +267,20 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
     const inResult = srsFilter(inCandidates, c => intervalNumberKey(c.semitones, c.direction), store);
     setInDeck(inResult.deck);
 
+    const ntCandidates = generateNoteTranspositionCandidates(ntIntervals, ntDirection);
+    const ntResult = srsFilter(ntCandidates, c => noteTranspositionKey(c.rootPitchClass, c.intervalSemitones, c.direction), store);
+    setNtDeck(ntResult.deck);
+
     const active =
       cardMode === 'note' ? noteResult
         : cardMode === 'interval' ? intResult
         : cardMode === 'pitch-class' ? pcResult
-        : inResult;
+        : cardMode === 'interval-number' ? inResult
+        : ntResult;
     setSessionDue(active.dueCount);
     setSessionNew(active.newCount);
     setNextDue(nextDueAfterToday(store));
-  }, [cardMode, noteStrings, fretStart, fretEnd, fretMode, positionFret, intStrings, intIntervals, intDirection, pcDirection, inDirection]);
+  }, [cardMode, noteStrings, fretStart, fretEnd, fretMode, positionFret, intStrings, intIntervals, intDirection, pcDirection, inDirection, ntIntervals, ntDirection]);
 
   const restart = useCallback(() => {
     const store = loadStore();
@@ -280,7 +314,7 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
     restart();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const getCardKey = useCallback((card: NoteCardData | IntervalCardData | PitchClassCardData | IntervalNumberCardData): string => {
+  const getCardKey = useCallback((card: NoteCardData | IntervalCardData | PitchClassCardData | IntervalNumberCardData | NoteTranspositionCardData): string => {
     if (cardMode === 'note') {
       const c = card as NoteCardData;
       return noteKey(c.stringIndex, c.fret);
@@ -293,8 +327,12 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
       const c = card as PitchClassCardData;
       return pitchClassKey(c.pitchClass, c.direction);
     }
-    const c = card as IntervalNumberCardData;
-    return intervalNumberKey(c.semitones, c.direction);
+    if (cardMode === 'interval-number') {
+      const c = card as IntervalNumberCardData;
+      return intervalNumberKey(c.semitones, c.direction);
+    }
+    const c = card as NoteTranspositionCardData;
+    return noteTranspositionKey(c.rootPitchClass, c.intervalSemitones, c.direction);
   }, [cardMode]);
 
   const handleFlip = () => setFlipped(true);
@@ -335,13 +373,20 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
       module = 'Note Numbers';
       topic = card.direction === 'note-to-number' ? 'Note to number' : 'Number to note';
       detail = `Pitch class ${card.pitchClass}`;
-    } else {
+    } else if (cardMode === 'interval-number') {
       const card = currentCard as IntervalNumberCardData;
       module = 'Interval Numbers';
       const intervalName = INTERVAL_NAMES[card.semitones] ?? `${card.semitones} semitones`;
       const directionName = card.direction === 'name-to-number' ? 'Name to number' : 'Number to name';
       topic = `${intervalName} · ${directionName}`;
       detail = directionName;
+    } else {
+      const card = currentCard as NoteTranspositionCardData;
+      module = 'Note Transposition';
+      const intervalName = INTERVAL_NAMES[card.intervalSemitones] ?? `${card.intervalSemitones} semitones`;
+      const directionName = card.direction === 'up' ? 'Up' : 'Down';
+      topic = `${intervalName} · ${directionName}`;
+      detail = `Start on ${NOTES[card.rootPitchClass]}`;
     }
 
     const now = performance.now();
@@ -398,11 +443,16 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
       const [card] = pd.splice(currentIndex, 1);
       pd.splice(Math.min(pd.length, currentIndex + offset), 0, card);
       setPcDeck(pd);
-    } else {
+    } else if (cardMode === 'interval-number') {
       const ind = [...inDeck];
       const [card] = ind.splice(currentIndex, 1);
       ind.splice(Math.min(ind.length, currentIndex + offset), 0, card);
       setInDeck(ind);
+    } else {
+      const ntd = [...ntDeck];
+      const [card] = ntd.splice(currentIndex, 1);
+      ntd.splice(Math.min(ntd.length, currentIndex + offset), 0, card);
+      setNtDeck(ntd);
     }
   };
 
@@ -501,6 +551,12 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
     setIntStrings([]);
   };
 
+  const toggleNtInterval = (semitones: number) => {
+    setNtIntervals(current => current.includes(semitones)
+      ? current.filter(value => value !== semitones)
+      : [...current, semitones].sort((a, b) => a - b));
+  };
+
   const isDone = deck.length > 0 && currentIndex >= deck.length;
   const currentCard = deck[currentIndex];
 
@@ -508,7 +564,7 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
   const cardKey = currentCard ? getCardKey(currentCard) : null;
   const cardRec: CardRecord | undefined = cardKey ? storeRef.current[cardKey] : undefined;
 
-  const modeBtn = (mode: 'note' | 'interval' | 'pitch-class' | 'interval-number', label: string) => (
+  const modeBtn = (mode: CardMode, label: string) => (
     <button
       key={mode}
       onClick={() => setCardMode(mode)}
@@ -536,9 +592,10 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
     <div className="max-w-2xl mx-auto px-4 py-8">
       {/* Top bar */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {modeBtn('note', 'Note Cards')}
           {modeBtn('interval', 'Interval Cards')}
+          {modeBtn('note-transposition', 'Note + Interval')}
           {modeBtn('pitch-class', 'Note Numbers')}
           {modeBtn('interval-number', 'Interval Numbers')}
         </div>
@@ -552,7 +609,7 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
             </span>
           )}
           <span className="text-gray-500 font-medium">{correct} / {seen}</span>
-          {cardMode === 'interval' && intervalStats.completed > 0 && (
+          {(cardMode === 'interval' || cardMode === 'note-transposition') && intervalStats.completed > 0 && (
             <span className="text-xs text-indigo-600 font-medium">
               First try {intervalStats.firstTry}/{intervalStats.completed}
               {' · '}Score {Math.round(intervalStats.totalScore / intervalStats.completed)}
@@ -808,6 +865,66 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
                 Show tuning intervals
               </label>
             </>
+          ) : cardMode === 'note-transposition' ? (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Note Transposition</p>
+                  <p className="text-xs text-gray-400">Choose which intervals and directions to calculate.</p>
+                </div>
+                <button
+                  onClick={() => setNtIntervals([])}
+                  className="px-3 py-1.5 rounded border border-red-200 bg-white text-sm font-medium text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors"
+                >
+                  Clear All
+                </button>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Intervals</p>
+                <div className="flex flex-wrap gap-2">
+                  {INTERVAL_OPTIONS.map(option => (
+                    <button
+                      key={option.s}
+                      onClick={() => toggleNtInterval(option.s)}
+                      className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                        ntIntervals.includes(option.s)
+                          ? 'bg-cyan-700 text-white'
+                          : 'bg-white border border-gray-300 text-gray-600 hover:border-cyan-500'
+                      }`}
+                    >
+                      {option.n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Direction</p>
+                <div className="flex gap-2">
+                  {(['up', 'down', 'both'] as const).map(direction => (
+                    <button
+                      key={direction}
+                      onClick={() => setNtDirection(direction)}
+                      className={`px-3 py-1.5 rounded text-sm font-medium capitalize transition-colors ${
+                        ntDirection === direction
+                          ? 'bg-cyan-700 text-white'
+                          : 'bg-white border border-gray-300 text-gray-600 hover:border-cyan-500'
+                      }`}
+                    >
+                      {direction}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={ntShowSemitones}
+                  onChange={event => setNtShowSemitones(event.target.checked)}
+                  className="rounded"
+                />
+                Show semitone hint on the prompt
+              </label>
+            </>
           ) : (
             <>
               <div>
@@ -927,17 +1044,19 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
         <div className="text-center py-16">
           <p className="text-2xl font-bold text-indigo-700 mb-2">Session Complete!</p>
           <p className="text-gray-500 mb-1">{correct} / {seen} correct</p>
-          {cardMode === 'interval' && intervalStats.completed > 0 && (
+          {(cardMode === 'interval' || cardMode === 'note-transposition') && intervalStats.completed > 0 && (
             <div className="text-sm text-gray-500 mb-3 space-y-1">
               <p>
                 First try: {intervalStats.firstTry} / {intervalStats.completed}
                 {' · '}Average score: {Math.round(intervalStats.totalScore / intervalStats.completed)}
               </p>
-              <p className="text-xs text-gray-400">
-                Audio-assisted: {intervalStats.audioAssisted}
-                {' · '}Self-verified: {intervalStats.selfVerified}
-                {' · '}Answers shown: {intervalStats.answerShown}
-              </p>
+              {cardMode === 'interval' && (
+                <p className="text-xs text-gray-400">
+                  Audio-assisted: {intervalStats.audioAssisted}
+                  {' · '}Self-verified: {intervalStats.selfVerified}
+                  {' · '}Answers shown: {intervalStats.answerShown}
+                </p>
+              )}
             </div>
           )}
           {(sessionDue > 0 || sessionNew > 0) && (
@@ -1000,6 +1119,16 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
               onFlip={handleFlip}
               onCorrect={pcMultipleChoice ? handleAutoCorrect : () => {}}
               onIncorrect={pcMultipleChoice ? handleAutoIncorrect : () => {}}
+            />
+          ) : cardMode === 'note-transposition' ? (
+            <NoteTranspositionCard
+              key={`${currentIndex}-${seen}`}
+              card={currentCard as NoteTranspositionCardData}
+              flipped={flipped}
+              showSemitones={ntShowSemitones}
+              onFlip={handleFlip}
+              onCorrect={handleIntervalCorrect}
+              onIncorrect={handleIntervalIncorrect}
             />
           ) : (
             <IntervalNumberCard

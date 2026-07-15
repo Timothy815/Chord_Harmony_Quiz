@@ -3,6 +3,7 @@ export type PracticeModule =
   | 'Interval Cards'
   | 'Note Numbers'
   | 'Interval Numbers'
+  | 'Note Transposition'
   | 'Fretboard Trainer'
   | 'Chord Quiz';
 

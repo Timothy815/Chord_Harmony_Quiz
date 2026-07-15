@@ -58,6 +58,12 @@ export function intervalNumberKey(semitones: number, direction: string): string 
   return `interval-number:${semitones}:${direction}`;
 }
 
+export function noteTranspositionKey(
+  rootPitchClass: number, semitones: number, direction: string,
+): string {
+  return `note-transposition:${rootPitchClass}:${semitones}:${direction}`;
+}
+
 export function trainerKey(
   rootPitchClass: number, contentType: 'scale' | 'chord', typeName: string, shapeName: string,
 ): string {
