@@ -10,6 +10,7 @@ interface TrainerFretboardProps {
   missedKey: string | null;
   onCellClick: (cell: ScaleBoxCell) => void;
   registerCellElement: (key: string, element: HTMLDivElement | null) => void;
+  showTargets?: boolean;
 }
 
 export function TrainerFretboard({
@@ -20,6 +21,7 @@ export function TrainerFretboard({
   missedKey,
   onCellClick,
   registerCellElement,
+  showTargets = true,
 }: TrainerFretboardProps) {
   const cellsByKey = new Map(cells.map((cell) => [cellKey(cell.stringIndex, cell.fret), cell]));
   const fretCount = endFret - startFret + 1;
@@ -78,28 +80,35 @@ export function TrainerFretboard({
               {frets.map((fret) => {
                 const key = cellKey(stringIndex, fret);
                 const cell = cellsByKey.get(key);
+                const midi = stringBaseMidi + fret;
+                const interactiveCell = cell ?? {
+                  stringIndex,
+                  fret,
+                  pitchClass: midi % 12,
+                };
                 const isFilled = filledKeys.has(key);
                 const isMissed = missedKey === key;
-                const midi = stringBaseMidi + fret;
                 const noteInfo = midiToNoteString(midi);
 
                 return (
                   <div
                     key={fret}
                     ref={(el) => {
-                      setCellRef(key, Boolean(cell), el);
+                      setCellRef(key, Boolean(cell) || !showTargets, el);
                     }}
                     className="flex-1 h-full flex items-center justify-center relative z-20"
                   >
-                    {cell && (
+                    {(cell || !showTargets) && (
                       <div
-                        onClick={() => onCellClick(cell)}
+                        onClick={() => onCellClick(interactiveCell)}
                         className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer transition-colors border-2 ${
                           isFilled
                             ? 'bg-green-600 text-white border-green-300'
                             : isMissed
                               ? 'bg-red-600 text-white border-red-300'
-                              : 'bg-black/40 text-white/70 border-white/20 hover:border-indigo-400'
+                              : showTargets
+                                ? 'bg-black/40 text-white/70 border-white/20 hover:border-indigo-400'
+                                : 'bg-transparent text-transparent border-transparent hover:border-cyan-300 hover:bg-white/10'
                         }`}
                         title={isFilled
                           ? `String ${6 - stringIndex}, fret ${fret} (${noteInfo.note})`

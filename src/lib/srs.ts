@@ -64,10 +64,22 @@ export function noteTranspositionKey(
   return `note-transposition:${rootPitchClass}:${semitones}:${direction}`;
 }
 
+export function theoryFormulaKey(
+  category: string, formulaId: string, direction: string,
+): string {
+  return `theory-formula:${category}:${formulaId}:${direction}`;
+}
+
 export function trainerKey(
   rootPitchClass: number, contentType: 'scale' | 'chord', typeName: string, shapeName: string,
 ): string {
   return `trainer:${rootPitchClass}:${contentType}:${typeName}:${shapeName}`;
+}
+
+export function scaleRunKey(
+  rootPitchClass: number, scaleName: string, shapeName: string,
+): string {
+  return `scale-run:${rootPitchClass}:${scaleName}:${shapeName}`;
 }
 
 export function isDue(record: CardRecord | undefined): boolean {

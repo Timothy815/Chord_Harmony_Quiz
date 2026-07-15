@@ -10,10 +10,12 @@ import { TrainerFretboard } from './TrainerFretboard';
 import { NoteToken } from './NoteToken';
 import { playMidiNote } from '../lib/audio';
 import {
-  SRSStore, loadStore, saveStore, trainerKey, isDue, reviewTrainerCard,
+  SRSStore, loadStore, saveStore, trainerKey, scaleRunKey, isDue, reviewTrainerCard,
 } from '../lib/srs';
 import { recordPractice } from '../lib/analytics';
 import type { PracticeTarget } from '../lib/analytics';
+import { generateRootToRootScaleRun } from '../lib/scaleRun';
+import { ChordConstructionTrainer } from './ChordConstructionTrainer';
 
 function shuffle<T>(arr: T[]): T[] {
   const next = [...arr];
@@ -25,6 +27,7 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 type ContentType = 'scale' | 'chord';
+type TrainerMode = 'shape-map' | 'scale-run' | 'chord-construction';
 
 interface TrainerCombo {
   root: number;
@@ -76,8 +79,15 @@ function tonesForCombo(combo: TrainerCombo): number[] {
   return names.map((note) => getNoteIndex(note));
 }
 
-function cellsForCombo(combo: TrainerCombo): ScaleBoxCell[] {
+function cellsForCombo(combo: TrainerCombo, trainerMode: TrainerMode): ScaleBoxCell[] {
   if (combo.contentType === 'scale') {
+    if (trainerMode === 'scale-run') {
+      return generateRootToRootScaleRun(
+        combo.root,
+        SCALES[combo.typeName as keyof typeof SCALES].steps,
+        combo.shape,
+      );
+    }
     return generateScaleBox(combo.root, tonesForCombo(combo), combo.shape);
   }
 
@@ -91,6 +101,12 @@ function cellsForCombo(combo: TrainerCombo): ScaleBoxCell[] {
     fret,
     pitchClass: (GUITAR_TUNING[stringIndex] + fret) % 12,
   }]);
+}
+
+function comboKey(combo: TrainerCombo, trainerMode: TrainerMode): string {
+  return trainerMode === 'scale-run'
+    ? scaleRunKey(combo.root, combo.typeName, combo.shape.name)
+    : trainerKey(combo.root, combo.contentType, combo.typeName, combo.shape.name);
 }
 
 function toggleValue<T extends string | number>(
@@ -113,7 +129,13 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
     : [];
   const targetContentType = targetParts[1] === 'scale' || targetParts[1] === 'chord'
     ? targetParts[1] as ContentType
-    : null;
+    : targetParts[1] === 'scale-run' ? 'scale' : null;
+  const [trainerMode, setTrainerMode] = useState<TrainerMode>(
+    practiceTarget?.topic.startsWith('Triad Voicing') || practiceTarget?.topic.startsWith('Shell Voicing')
+      ? 'chord-construction'
+      : targetParts[1] === 'scale-run' ? 'scale-run' : 'shape-map'
+  );
+  const [showStepPattern, setShowStepPattern] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [roots, setRoots] = useState<number[]>(ALL_ROOTS);
   const [contentTypes, setContentTypes] = useState<ContentType[]>(targetContentType ? [targetContentType] : ['scale', 'chord']);
@@ -140,6 +162,8 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
 
   const storeRef = useRef<SRSStore>({});
   const roundStartedAtRef = useRef(0);
+  const showStepPatternRef = useRef(showStepPattern);
+  const usedStepPatternInRoundRef = useRef(false);
   const cellElementsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const missFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -164,7 +188,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
 
     while (remaining.length > 0) {
       const combo = remaining.shift()!;
-      const cells = cellsForCombo(combo);
+      const cells = cellsForCombo(combo, trainerMode);
 
       if (cells.length > 0) {
         const uniquePitchClasses = Array.from(new Set(cells.map((cell) => cell.pitchClass)));
@@ -179,6 +203,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
         setRoundId((value) => value + 1);
         setNoValidCombos(false);
         setSessionComplete(false);
+        usedStepPatternInRoundRef.current = trainerMode === 'scale-run' && showStepPatternRef.current;
         roundStartedAtRef.current = performance.now();
         return;
       }
@@ -190,13 +215,19 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
     setFilledKeys(new Set());
     setDeck([]);
     setSessionComplete(true);
-  }, []);
+  }, [trainerMode]);
 
   const restart = useCallback(() => {
     const store = loadStore();
     storeRef.current = store;
 
-    const pool = buildComboPool(roots, contentTypes, scaleTypes, chordTypes, shapeNames);
+    const pool = buildComboPool(
+      roots,
+      trainerMode === 'scale-run' ? ['scale'] : contentTypes,
+      scaleTypes,
+      chordTypes,
+      shapeNames,
+    );
     setRoundsCompleted(0);
     setRoundsClean(0);
     setSessionComplete(false);
@@ -218,7 +249,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
     const scheduled: TrainerCombo[] = [];
 
     for (const combo of pool) {
-      const key = trainerKey(combo.root, combo.contentType, combo.typeName, combo.shape.name);
+      const key = comboKey(combo, trainerMode);
       const record = store[key];
       if (!record) {
         fresh.push(combo);
@@ -230,7 +261,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
     }
 
     const nextDeck = [...shuffle(due), ...shuffle(fresh), ...shuffle(scheduled)]
-      .filter((combo) => cellsForCombo(combo).length > 0);
+      .filter((combo) => cellsForCombo(combo, trainerMode).length > 0);
     if (nextDeck.length === 0) {
       setDeck([]);
       setCurrentCombo(null);
@@ -243,7 +274,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
     }
     setSessionTotal(nextDeck.length);
     loadRound(nextDeck);
-  }, [roots, contentTypes, scaleTypes, chordTypes, shapeNames, loadRound]);
+  }, [roots, contentTypes, scaleTypes, chordTypes, shapeNames, trainerMode, loadRound]);
 
   useEffect(() => {
     restart();
@@ -267,12 +298,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
       return;
     }
 
-    const key = trainerKey(
-      currentCombo.root,
-      currentCombo.contentType,
-      currentCombo.typeName,
-      currentCombo.shape.name,
-    );
+    const key = comboKey(currentCombo, trainerMode);
     const wasClean = finalMissCount === 0;
     const elapsedMs = Math.max(1, Math.round(performance.now() - roundStartedAtRef.current));
     const review = reviewTrainerCard(storeRef.current[key], wasClean, elapsedMs);
@@ -281,12 +307,15 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
     saveStore(storeRef.current);
     recordPractice({
       module: 'Fretboard Trainer',
-      topic: `${currentCombo.shape.name} · ${currentCombo.contentType} · ${currentCombo.typeName}`,
+      topic: trainerMode === 'scale-run'
+        ? `${currentCombo.shape.name} · scale-run · ${currentCombo.typeName}`
+        : `${currentCombo.shape.name} · ${currentCombo.contentType} · ${currentCombo.typeName}`,
       detail: `${NOTES[currentCombo.root]} root`,
       correct: wasClean,
       score: Math.round(100 / (finalMissCount + 1)),
       attempts: finalMissCount + 1,
       durationMs: elapsedMs,
+      assisted: trainerMode === 'scale-run' && usedStepPatternInRoundRef.current,
     });
     setRoundsCompleted((count) => count + 1);
     if (wasClean) {
@@ -305,15 +334,44 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
     }
 
     loadRound(wasClean ? deck : [...deck, currentCombo]);
-  }, [currentCombo, deck, loadRound]);
+  }, [currentCombo, deck, loadRound, trainerMode]);
 
   const attemptPlacement = useCallback((pitchClass: number, targetKey: string) => {
     const cell = filteredCells.find((candidate) => cellKey(candidate.stringIndex, candidate.fret) === targetKey);
-    if (!cell || filledKeys.has(targetKey)) {
+    if (filledKeys.has(targetKey)) {
       return;
     }
 
-    if (cell.pitchClass === pitchClass) {
+    if (trainerMode === 'scale-run') {
+      const [stringIndex, fret] = targetKey.split(':').map(Number);
+      const clickedMidi = GUITAR_TUNING[stringIndex] + fret;
+      const requiredMidis = new Set(filteredCells.map(candidate =>
+        GUITAR_TUNING[candidate.stringIndex] + candidate.fret
+      ));
+      const filledMidis = new Set([...filledKeys].map(key => {
+        const [filledString, filledFret] = key.split(':').map(Number);
+        return GUITAR_TUNING[filledString] + filledFret;
+      }));
+
+      if (requiredMidis.has(clickedMidi) && !filledMidis.has(clickedMidi) && clickedMidi % 12 === pitchClass) {
+        void playMidiNote(clickedMidi);
+        const nextFilled = new Set(filledKeys);
+        nextFilled.add(targetKey);
+        setFilledKeys(nextFilled);
+        setSelectedPitchClass(null);
+        if (nextFilled.size === filteredCells.length) {
+          completeRound(missCount);
+        }
+        return;
+      }
+
+      setMissCount((count) => count + 1);
+      flashMiss(targetKey);
+      setSelectedPitchClass(null);
+      return;
+    }
+
+    if (cell && cell.pitchClass === pitchClass) {
       void playMidiNote(GUITAR_TUNING[cell.stringIndex] + cell.fret);
       const nextFilled = new Set(filledKeys);
       nextFilled.add(targetKey);
@@ -328,7 +386,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
     setMissCount((count) => count + 1);
     flashMiss(targetKey);
     setSelectedPitchClass(null);
-  }, [filteredCells, filledKeys, missCount, completeRound, flashMiss]);
+  }, [filteredCells, filledKeys, missCount, completeRound, flashMiss, trainerMode]);
 
   const handleTokenDragEnd = useCallback((pitchClass: number, point: { x: number; y: number }) => {
     let nearestKey: string | null = null;
@@ -362,20 +420,30 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
   }, [attemptPlacement, selectedPitchClass]);
 
   const frets = filteredCells.map((cell) => cell.fret);
-  const startFret = frets.length > 0 ? Math.min(...frets) : 0;
-  const endFret = frets.length > 0 ? Math.max(...frets) : 4;
+  const scaleRunRange = currentCombo
+    ? getCagedFretRange(currentCombo.root, currentCombo.shape)
+    : null;
+  const startFret = trainerMode === 'scale-run' && scaleRunRange
+    ? scaleRunRange.startFret
+    : frets.length > 0 ? Math.min(...frets) : 0;
+  const endFret = trainerMode === 'scale-run' && scaleRunRange
+    ? scaleRunRange.endFret
+    : frets.length > 0 ? Math.max(...frets) : 4;
   const rootName = currentCombo ? NOTES[currentCombo.root] : '';
   const typeLabel = currentCombo
     ? currentCombo.contentType === 'scale'
       ? currentCombo.typeName
       : (CHORDS[currentCombo.typeName as keyof typeof CHORDS].abbr || currentCombo.typeName)
     : '';
+  const stepPattern = currentCombo?.contentType === 'scale'
+    ? SCALES[currentCombo.typeName as keyof typeof SCALES].pattern
+    : null;
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <h2 className="text-lg font-semibold tracking-tight text-indigo-700">Fretboard Trainer</h2>
-        <div className="flex items-center gap-3 text-sm">
+        {trainerMode !== 'chord-construction' && <div className="flex items-center gap-3 text-sm">
           <span className="text-gray-500 font-medium">{roundsClean} / {sessionTotal} mastered · {roundsCompleted} attempts</span>
           <button
             onClick={() => setShowFilters((value) => !value)}
@@ -386,8 +454,43 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
           <button onClick={restart} className="text-gray-500 hover:text-gray-800 font-medium">
             Restart
           </button>
-        </div>
+        </div>}
       </div>
+
+      <div className="mb-5 grid grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1.5">
+        <button
+          onClick={() => setTrainerMode('shape-map')}
+          className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+            trainerMode === 'shape-map'
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'text-slate-500 hover:bg-white'
+          }`}
+        >
+          Map Full Shape
+        </button>
+        <button
+          onClick={() => setTrainerMode('scale-run')}
+          className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+            trainerMode === 'scale-run'
+              ? 'bg-cyan-700 text-white shadow-sm'
+              : 'text-slate-500 hover:bg-white'
+          }`}
+        >
+          Build Root → Root
+        </button>
+        <button
+          onClick={() => setTrainerMode('chord-construction')}
+          className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+            trainerMode === 'chord-construction'
+              ? 'bg-amber-600 text-white shadow-sm'
+              : 'text-slate-500 hover:bg-white'
+          }`}
+        >
+          Build Voicings
+        </button>
+      </div>
+
+      {trainerMode === 'chord-construction' ? <ChordConstructionTrainer /> : <>
 
       {showFilters && (
         <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
@@ -420,26 +523,28 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
             </div>
           </div>
 
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Content</p>
-            <div className="flex gap-2">
-              {(['scale', 'chord'] as ContentType[]).map((contentType) => (
-                <button
-                  key={contentType}
-                  onClick={() => toggleValue(contentTypes, contentType, setContentTypes)}
-                  className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                    contentTypes.includes(contentType)
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white border border-gray-300 text-gray-600 hover:border-indigo-400'
-                  }`}
-                >
-                  {contentType === 'scale' ? 'Scales' : 'Chords'}
-                </button>
-              ))}
+          {trainerMode === 'shape-map' && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Content</p>
+              <div className="flex gap-2">
+                {(['scale', 'chord'] as ContentType[]).map((contentType) => (
+                  <button
+                    key={contentType}
+                    onClick={() => toggleValue(contentTypes, contentType, setContentTypes)}
+                    className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                      contentTypes.includes(contentType)
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-white border border-gray-300 text-gray-600 hover:border-indigo-400'
+                    }`}
+                  >
+                    {contentType === 'scale' ? 'Scales' : 'Chords'}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          {contentTypes.includes('scale') && (
+          {(trainerMode === 'scale-run' || contentTypes.includes('scale')) && (
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Scale Types</p>
               <div className="flex flex-wrap gap-2">
@@ -460,7 +565,23 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
             </div>
           )}
 
-          {contentTypes.includes('chord') && (
+          {trainerMode === 'scale-run' && (
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showStepPattern}
+                onChange={event => {
+                  showStepPatternRef.current = event.target.checked;
+                  if (event.target.checked) usedStepPatternInRoundRef.current = true;
+                  setShowStepPattern(event.target.checked);
+                }}
+                className="rounded"
+              />
+              Show whole-step / half-step pattern
+            </label>
+          )}
+
+          {trainerMode === 'shape-map' && contentTypes.includes('chord') && (
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Chord Types</p>
               <div className="flex flex-wrap gap-2">
@@ -482,7 +603,9 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
           )}
 
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">CAGED Shapes</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              {trainerMode === 'scale-run' ? 'CAGED Positions' : 'CAGED Shapes'}
+            </p>
             <div className="flex flex-wrap gap-2">
               {CAGED_ANCHORS.map((shape) => (
                 <button
@@ -532,7 +655,28 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
         <div>
           <div className="text-center mb-4">
             <p className="text-2xl font-bold text-indigo-700">{rootName} {typeLabel}</p>
-            <p className="text-sm text-gray-500">{currentCombo.shape.name} · Misses this round: {missCount}</p>
+            <p className="text-sm text-gray-500">
+              {currentCombo.shape.name}
+              {trainerMode === 'scale-run' ? ' · root to octave' : ''}
+              {' · '}Misses this round: {missCount}
+            </p>
+            {trainerMode === 'scale-run' && showStepPattern && stepPattern && (
+              <p className="mt-2 inline-block rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5 font-mono text-sm font-bold tracking-wider text-cyan-800">
+                {stepPattern}
+              </p>
+            )}
+            {trainerMode === 'scale-run' && !showStepPattern && (
+              <button
+                onClick={() => {
+                  showStepPatternRef.current = true;
+                  usedStepPatternInRoundRef.current = true;
+                  setShowStepPattern(true);
+                }}
+                className="mt-2 text-xs font-medium text-cyan-700 hover:text-cyan-900"
+              >
+                Show step-pattern hint
+              </button>
+            )}
           </div>
 
           <TrainerFretboard
@@ -544,7 +688,14 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
             missedKey={missedKey}
             onCellClick={handleCellClick}
             registerCellElement={registerCellElement}
+            showTargets={trainerMode === 'shape-map'}
           />
+
+          {trainerMode === 'scale-run' && (
+            <p className="mt-2 text-center text-xs text-slate-500">
+              Place the scale from its lowest root to the next root. Correct locations are hidden.
+            </p>
+          )}
 
           <div className="flex flex-wrap justify-center gap-3 mt-6">
             {noteTokens.map((token) => (
@@ -562,6 +713,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
       ) : (
         <div className="text-center py-16 text-gray-400">Loading…</div>
       )}
+      </>}
     </div>
   );
 }

@@ -7,10 +7,12 @@ import { PracticeModule, PracticeTarget, recordPractice } from '../../lib/analyt
 import { PitchClassCard, PitchClassCardData } from './PitchClassCard';
 import { IntervalNumberCard, IntervalNumberCardData } from './IntervalNumberCard';
 import { NoteTranspositionCard, NoteTranspositionCardData } from './NoteTranspositionCard';
+import { TheoryFormulaCard, TheoryFormulaCardData } from './TheoryFormulaCard';
+import { THEORY_FORMULAS, TheoryFormulaCategory } from '../../lib/theoryFormulas';
 import {
   SRSStore, CardRecord,
   loadStore, saveStore,
-  noteKey, intervalKey, pitchClassKey, intervalNumberKey, noteTranspositionKey,
+  noteKey, intervalKey, pitchClassKey, intervalNumberKey, noteTranspositionKey, theoryFormulaKey,
   isDue, nextDueAfterToday, reviewCard,
 } from '../../lib/srs';
 
@@ -89,6 +91,22 @@ function generateNoteTranspositionCandidates(
   );
 }
 
+function generateTheoryFormulaCandidates(
+  categories: TheoryFormulaCategory[],
+  direction: 'name-to-formula' | 'formula-to-name' | 'both',
+): TheoryFormulaCardData[] {
+  const directions: ('name-to-formula' | 'formula-to-name')[] = direction === 'both'
+    ? ['name-to-formula', 'formula-to-name']
+    : [direction];
+  return THEORY_FORMULAS
+    .filter(formula => categories.includes(formula.category))
+    .flatMap(formula => directions.map(cardDirection => ({
+      category: formula.category,
+      formulaId: formula.id,
+      direction: cardDirection,
+    })));
+}
+
 interface SRSResult<T> {
   deck: T[];
   dueCount: number;
@@ -127,7 +145,7 @@ const INTERVAL_OPTIONS = [
   { s: 10, n: 'Min 7th' }, { s: 11, n: 'Maj 7th' }, { s: 12, n: 'Octave' },
 ];
 
-type CardMode = 'note' | 'interval' | 'pitch-class' | 'interval-number' | 'note-transposition';
+type CardMode = 'note' | 'interval' | 'pitch-class' | 'interval-number' | 'note-transposition' | 'theory-formula';
 
 function targetInterval(target: PracticeTarget | undefined): number | null {
   if (!target) return null;
@@ -151,6 +169,7 @@ export function FlashcardShell({
     : practiceTarget?.module === 'Note Numbers' ? 'pitch-class'
       : practiceTarget?.module === 'Interval Numbers' ? 'interval-number'
         : practiceTarget?.module === 'Note Transposition' ? 'note-transposition'
+          : practiceTarget?.module === 'Theory Formulas' ? 'theory-formula'
         : 'note';
   const initialInterval = targetInterval(practiceTarget);
   const initialString = targetString(practiceTarget);
@@ -206,12 +225,26 @@ export function FlashcardShell({
   );
   const [ntShowSemitones, setNtShowSemitones] = useState(false);
 
+  // Theory-formula filters
+  const targetFormulaCategory = practiceTarget?.module === 'Theory Formulas'
+    && ['Scale', 'Mode', 'Chord'].includes(practiceTarget.topic.split(' · ')[0])
+    ? practiceTarget.topic.split(' · ')[0].toLowerCase() as TheoryFormulaCategory
+    : null;
+  const [tfCategories, setTfCategories] = useState<TheoryFormulaCategory[]>(
+    targetFormulaCategory ? [targetFormulaCategory] : ['scale', 'mode', 'chord']
+  );
+  const [tfDirection, setTfDirection] = useState<'name-to-formula' | 'formula-to-name' | 'both'>(
+    practiceTarget?.topic.endsWith('· Formula to name') ? 'formula-to-name'
+      : practiceTarget?.topic.endsWith('· Name to formula') ? 'name-to-formula' : 'both'
+  );
+
   // Session state
   const [noteDeck, setNoteDeck] = useState<NoteCardData[]>([]);
   const [intervalDeck, setIntervalDeck] = useState<IntervalCardData[]>([]);
   const [pcDeck, setPcDeck] = useState<PitchClassCardData[]>([]);
   const [inDeck, setInDeck] = useState<IntervalNumberCardData[]>([]);
   const [ntDeck, setNtDeck] = useState<NoteTranspositionCardData[]>([]);
+  const [tfDeck, setTfDeck] = useState<TheoryFormulaCardData[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [correct, setCorrect] = useState(0);
@@ -254,12 +287,13 @@ export function FlashcardShell({
     activeRef.current = active;
   }, [active]);
 
-  const deck: (NoteCardData | IntervalCardData | PitchClassCardData | IntervalNumberCardData | NoteTranspositionCardData)[] =
+  const deck: (NoteCardData | IntervalCardData | PitchClassCardData | IntervalNumberCardData | NoteTranspositionCardData | TheoryFormulaCardData)[] =
     cardMode === 'note' ? noteDeck
       : cardMode === 'interval' ? intervalDeck
       : cardMode === 'pitch-class' ? pcDeck
       : cardMode === 'interval-number' ? inDeck
-      : ntDeck;
+      : cardMode === 'note-transposition' ? ntDeck
+      : tfDeck;
 
   const buildAndSetDecks = useCallback((store: SRSStore) => {
     storeRef.current = store;
@@ -297,16 +331,21 @@ export function FlashcardShell({
     const ntResult = srsFilter(ntCandidates, c => noteTranspositionKey(c.rootPitchClass, c.intervalSemitones, c.direction), store);
     setNtDeck(ntResult.deck);
 
+    const tfCandidates = generateTheoryFormulaCandidates(tfCategories, tfDirection);
+    const tfResult = srsFilter(tfCandidates, c => theoryFormulaKey(c.category, c.formulaId, c.direction), store);
+    setTfDeck(tfResult.deck);
+
     const active =
       cardMode === 'note' ? noteResult
         : cardMode === 'interval' ? intResult
         : cardMode === 'pitch-class' ? pcResult
         : cardMode === 'interval-number' ? inResult
-        : ntResult;
+        : cardMode === 'note-transposition' ? ntResult
+        : tfResult;
     setSessionDue(active.dueCount);
     setSessionNew(active.newCount);
     setNextDue(nextDueAfterToday(store));
-  }, [cardMode, noteStrings, fretStart, fretEnd, fretMode, positionFret, intStrings, intIntervals, intDirection, pcDirection, inDirection, ntIntervals, ntDirection]);
+  }, [cardMode, noteStrings, fretStart, fretEnd, fretMode, positionFret, intStrings, intIntervals, intDirection, pcDirection, inDirection, ntIntervals, ntDirection, tfCategories, tfDirection]);
 
   const restart = useCallback(() => {
     const store = loadStore();
@@ -340,7 +379,7 @@ export function FlashcardShell({
     restart();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const getCardKey = useCallback((card: NoteCardData | IntervalCardData | PitchClassCardData | IntervalNumberCardData | NoteTranspositionCardData): string => {
+  const getCardKey = useCallback((card: NoteCardData | IntervalCardData | PitchClassCardData | IntervalNumberCardData | NoteTranspositionCardData | TheoryFormulaCardData): string => {
     if (cardMode === 'note') {
       const c = card as NoteCardData;
       return noteKey(c.stringIndex, c.fret);
@@ -357,8 +396,12 @@ export function FlashcardShell({
       const c = card as IntervalNumberCardData;
       return intervalNumberKey(c.semitones, c.direction);
     }
-    const c = card as NoteTranspositionCardData;
-    return noteTranspositionKey(c.rootPitchClass, c.intervalSemitones, c.direction);
+    if (cardMode === 'note-transposition') {
+      const c = card as NoteTranspositionCardData;
+      return noteTranspositionKey(c.rootPitchClass, c.intervalSemitones, c.direction);
+    }
+    const c = card as TheoryFormulaCardData;
+    return theoryFormulaKey(c.category, c.formulaId, c.direction);
   }, [cardMode]);
 
   const handleFlip = () => setFlipped(true);
@@ -406,13 +449,21 @@ export function FlashcardShell({
       const directionName = card.direction === 'name-to-number' ? 'Name to number' : 'Number to name';
       topic = `${intervalName} · ${directionName}`;
       detail = directionName;
-    } else {
+    } else if (cardMode === 'note-transposition') {
       const card = currentCard as NoteTranspositionCardData;
       module = 'Note Transposition';
       const intervalName = INTERVAL_NAMES[card.intervalSemitones] ?? `${card.intervalSemitones} semitones`;
       const directionName = card.direction === 'up' ? 'Up' : 'Down';
       topic = `${intervalName} · ${directionName}`;
       detail = `Start on ${NOTES[card.rootPitchClass]}`;
+    } else {
+      const card = currentCard as TheoryFormulaCardData;
+      const formula = THEORY_FORMULAS.find(item => item.category === card.category && item.id === card.formulaId);
+      module = 'Theory Formulas';
+      const categoryName = card.category[0].toUpperCase() + card.category.slice(1);
+      const directionName = card.direction === 'name-to-formula' ? 'Name to formula' : 'Formula to name';
+      topic = `${categoryName} · ${formula?.name ?? card.formulaId} · ${directionName}`;
+      detail = formula?.formula ?? card.formulaId;
     }
 
     const now = performance.now();
@@ -474,11 +525,16 @@ export function FlashcardShell({
       const [card] = ind.splice(currentIndex, 1);
       ind.splice(Math.min(ind.length, currentIndex + offset), 0, card);
       setInDeck(ind);
-    } else {
+    } else if (cardMode === 'note-transposition') {
       const ntd = [...ntDeck];
       const [card] = ntd.splice(currentIndex, 1);
       ntd.splice(Math.min(ntd.length, currentIndex + offset), 0, card);
       setNtDeck(ntd);
+    } else {
+      const tfd = [...tfDeck];
+      const [card] = tfd.splice(currentIndex, 1);
+      tfd.splice(Math.min(tfd.length, currentIndex + offset), 0, card);
+      setTfDeck(tfd);
     }
   };
 
@@ -583,6 +639,12 @@ export function FlashcardShell({
       : [...current, semitones].sort((a, b) => a - b));
   };
 
+  const toggleTfCategory = (category: TheoryFormulaCategory) => {
+    setTfCategories(current => current.includes(category)
+      ? current.filter(value => value !== category)
+      : [...current, category]);
+  };
+
   const isDone = deck.length > 0 && currentIndex >= deck.length;
   const currentCard = deck[currentIndex];
 
@@ -624,6 +686,7 @@ export function FlashcardShell({
           {modeBtn('note-transposition', 'Note + Interval')}
           {modeBtn('pitch-class', 'Note Numbers')}
           {modeBtn('interval-number', 'Interval Numbers')}
+          {modeBtn('theory-formula', 'Theory Formulas')}
         </div>
         <div className="flex items-center gap-3 text-sm">
           {deck.length > 0 && (sessionDue > 0 || sessionNew > 0) && (
@@ -635,7 +698,7 @@ export function FlashcardShell({
             </span>
           )}
           <span className="text-gray-500 font-medium">{correct} / {seen}</span>
-          {(cardMode === 'interval' || cardMode === 'note-transposition') && intervalStats.completed > 0 && (
+          {(cardMode === 'interval' || cardMode === 'note-transposition' || cardMode === 'theory-formula') && intervalStats.completed > 0 && (
             <span className="text-xs text-indigo-600 font-medium">
               First try {intervalStats.firstTry}/{intervalStats.completed}
               {' · '}Score {Math.round(intervalStats.totalScore / intervalStats.completed)}
@@ -951,6 +1014,65 @@ export function FlashcardShell({
                 Show semitone hint on the prompt
               </label>
             </>
+          ) : cardMode === 'theory-formula' ? (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Theory Formulas</p>
+                  <p className="text-xs text-gray-400">Recall scale, mode, and chord construction formulas.</p>
+                </div>
+                <button
+                  onClick={() => setTfCategories([])}
+                  className="px-3 py-1.5 rounded border border-red-200 bg-white text-sm font-medium text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors"
+                >
+                  Clear All
+                </button>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Formula Types</p>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { value: 'scale', label: 'Scales' },
+                    { value: 'mode', label: 'Modes' },
+                    { value: 'chord', label: 'Chords' },
+                  ] as { value: TheoryFormulaCategory; label: string }[]).map(option => (
+                    <button
+                      key={option.value}
+                      onClick={() => toggleTfCategory(option.value)}
+                      className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                        tfCategories.includes(option.value)
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-white border border-gray-300 text-gray-600 hover:border-amber-400'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Direction</p>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { value: 'name-to-formula', label: 'Name → Formula' },
+                    { value: 'formula-to-name', label: 'Formula → Name' },
+                    { value: 'both', label: 'Both' },
+                  ] as const).map(option => (
+                    <button
+                      key={option.value}
+                      onClick={() => setTfDirection(option.value)}
+                      className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                        tfDirection === option.value
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-white border border-gray-300 text-gray-600 hover:border-amber-400'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
           ) : (
             <>
               <div>
@@ -1070,7 +1192,7 @@ export function FlashcardShell({
         <div className="text-center py-16">
           <p className="text-2xl font-bold text-indigo-700 mb-2">Session Complete!</p>
           <p className="text-gray-500 mb-1">{correct} / {seen} correct</p>
-          {(cardMode === 'interval' || cardMode === 'note-transposition') && intervalStats.completed > 0 && (
+          {(cardMode === 'interval' || cardMode === 'note-transposition' || cardMode === 'theory-formula') && intervalStats.completed > 0 && (
             <div className="text-sm text-gray-500 mb-3 space-y-1">
               <p>
                 First try: {intervalStats.firstTry} / {intervalStats.completed}
@@ -1152,6 +1274,15 @@ export function FlashcardShell({
               card={currentCard as NoteTranspositionCardData}
               flipped={flipped}
               showSemitones={ntShowSemitones}
+              onFlip={handleFlip}
+              onCorrect={handleIntervalCorrect}
+              onIncorrect={handleIntervalIncorrect}
+            />
+          ) : cardMode === 'theory-formula' ? (
+            <TheoryFormulaCard
+              key={`${currentIndex}-${seen}`}
+              card={currentCard as TheoryFormulaCardData}
+              flipped={flipped}
               onFlip={handleFlip}
               onCorrect={handleIntervalCorrect}
               onIncorrect={handleIntervalIncorrect}
