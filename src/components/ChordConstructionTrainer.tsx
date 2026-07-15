@@ -69,6 +69,7 @@ export function ChordConstructionTrainer() {
   const [stringSetLabels, setStringSetLabels] = useState<string[]>(TRIAD_STRING_SETS.map(set => set.label));
   const [shapeNames, setShapeNames] = useState<string[]>(CAGED_ANCHORS.map(shape => shape.name));
   const [showFormula, setShowFormula] = useState(false);
+  const [showRoots, setShowRoots] = useState(true);
 
   const [deck, setDeck] = useState<ChordConstructionChallenge[]>([]);
   const [current, setCurrent] = useState<ChordConstructionChallenge | null>(null);
@@ -89,6 +90,8 @@ export function ChordConstructionTrainer() {
   const roundStartedAtRef = useRef(0);
   const usedFormulaRef = useRef(false);
   const showFormulaRef = useRef(showFormula);
+  const usedRootHintRef = useRef(showRoots);
+  const showRootsRef = useRef(showRoots);
   const cellElementsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const missTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -154,6 +157,7 @@ export function ChordConstructionTrainer() {
     setRoundId(value => value + 1);
     setSessionComplete(false);
     usedFormulaRef.current = showFormulaRef.current;
+    usedRootHintRef.current = showRootsRef.current;
     roundStartedAtRef.current = performance.now();
   }, []);
 
@@ -210,7 +214,7 @@ export function ChordConstructionTrainer() {
       score: Math.round(100 / (finalMissCount + 1)),
       attempts: finalMissCount + 1,
       durationMs: elapsedMs,
-      assisted: usedFormulaRef.current,
+      assisted: usedFormulaRef.current || usedRootHintRef.current,
     });
     setRoundsCompleted(count => count + 1);
     if (clean) setRoundsClean(count => count + 1);
@@ -263,6 +267,21 @@ export function ChordConstructionTrainer() {
   const formula = current ? constructionIntervals(current).map(interval => interval === 0 ? 'R' : intervalLabel(interval)).join(' – ') : '';
   const range = current ? getCagedFretRange(current.root, current.shape) : { startFret: 0, endFret: 4 };
   const cells = legalVoicings.flat();
+  const rootReferenceKeys = new Set<string>();
+  if (current && showRoots) {
+    if (constructionIntervals(current).includes(0)) {
+      legalVoicings.flat().filter(cell => cell.interval === 0)
+        .forEach(cell => rootReferenceKeys.add(cellKey(cell.stringIndex, cell.fret)));
+    } else {
+      for (let stringIndex = 0; stringIndex < GUITAR_TUNING.length; stringIndex++) {
+        for (let fret = range.startFret; fret <= range.endFret; fret++) {
+          if ((GUITAR_TUNING[stringIndex] + fret) % 12 === current.root) {
+            rootReferenceKeys.add(cellKey(stringIndex, fret));
+          }
+        }
+      }
+    }
+  }
   const tokens = current ? constructionIntervals(current).map(interval => ({
     interval,
     pitchClass: (current.root + interval) % 12,
@@ -302,6 +321,7 @@ export function ChordConstructionTrainer() {
           <FilterGroup label="String Set">{activeStringSets.map(set => <FilterButton key={set.label} active={stringSetLabels.includes(set.label)} onClick={() => toggle(stringSetLabels, set.label, setStringSetLabels)}>{set.label}</FilterButton>)}</FilterGroup>
           <FilterGroup label="Fretboard Position">{CAGED_ANCHORS.map(shape => <FilterButton key={shape.name} active={shapeNames.includes(shape.name)} onClick={() => toggle(shapeNames, shape.name, setShapeNames)}>{shape.name}</FilterButton>)}</FilterGroup>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={showFormula} onChange={event => { showFormulaRef.current = event.target.checked; setShowFormula(event.target.checked); if (event.target.checked) usedFormulaRef.current = true; }} /> Show interval formula</label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={showRoots} onChange={event => { showRootsRef.current = event.target.checked; setShowRoots(event.target.checked); if (event.target.checked) usedRootHintRef.current = true; }} /> Show root locations</label>
           <button onClick={restart} className="rounded bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700">Apply &amp; Restart</button>
         </div>
       )}
@@ -315,9 +335,12 @@ export function ChordConstructionTrainer() {
               <p className="mt-1 text-sm text-slate-500">{inversionLabel(current)} · strings {current.stringSet.label} · {current.shape.name} · misses {missCount}</p>
               {current.family === 'shell' && <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-amber-700">{current.structure === 'rooted' ? 'Root–3rd–7th' : 'Rootless 3rd–7th'}</p>}
               {showFormula ? <p className="mt-2 inline-block rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 font-mono text-sm font-bold text-amber-900">{formula}</p> : <button onClick={() => { showFormulaRef.current = true; setShowFormula(true); usedFormulaRef.current = true; }} className="mt-2 text-xs font-semibold text-amber-700 hover:text-amber-900">Show interval-formula hint</button>}
+              <div className="mt-2">
+                {showRoots ? <button onClick={() => { showRootsRef.current = false; setShowRoots(false); }} className="text-xs font-semibold text-amber-700 hover:text-amber-900">Hide root locations</button> : <button onClick={() => { showRootsRef.current = true; setShowRoots(true); usedRootHintRef.current = true; }} className="text-xs font-semibold text-amber-700 hover:text-amber-900">Show root locations</button>}
+              </div>
             </div>
-            <TrainerFretboard key={roundId} cells={cells} startFret={range.startFret} endFret={range.endFret} filledKeys={filledKeys} missedKey={missedKey} onCellClick={handleCellClick} registerCellElement={registerCellElement} showTargets={false} />
-            <p className="mt-2 text-center text-xs text-slate-500">Use each required chord tone once on the specified strings. Correct locations are hidden.</p>
+            <TrainerFretboard key={roundId} cells={cells} startFret={range.startFret} endFret={range.endFret} filledKeys={filledKeys} missedKey={missedKey} onCellClick={handleCellClick} registerCellElement={registerCellElement} showTargets={false} referenceKeys={rootReferenceKeys} referenceLabel={NOTES[current.root]} />
+            <p className="mt-2 text-center text-xs text-slate-500">Use each required chord tone once on the specified strings. {showRoots ? 'Amber markers show the root; other locations remain hidden.' : 'Correct locations are hidden.'}</p>
             <div className="mt-6 flex flex-wrap justify-center gap-3">{tokens.map(token => <NoteToken key={token.interval} pitchClass={token.pitchClass} label={NOTES[token.pitchClass]} selected={selectedPitchClass === token.pitchClass} onTap={pitchClass => setSelectedPitchClass(value => value === pitchClass ? null : pitchClass)} onDragEnd={handleDragEnd} />)}</div>
           </div> : <div className="py-16 text-center text-slate-400">Loading…</div>}
     </div>

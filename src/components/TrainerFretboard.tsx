@@ -11,6 +11,8 @@ interface TrainerFretboardProps {
   onCellClick: (cell: ScaleBoxCell) => void;
   registerCellElement: (key: string, element: HTMLDivElement | null) => void;
   showTargets?: boolean;
+  referenceKeys?: Set<string>;
+  referenceLabel?: string;
 }
 
 export function TrainerFretboard({
@@ -22,6 +24,8 @@ export function TrainerFretboard({
   onCellClick,
   registerCellElement,
   showTargets = true,
+  referenceKeys = new Set(),
+  referenceLabel = 'R',
 }: TrainerFretboardProps) {
   const cellsByKey = new Map(cells.map((cell) => [cellKey(cell.stringIndex, cell.fret), cell]));
   const fretCount = endFret - startFret + 1;
@@ -88,6 +92,7 @@ export function TrainerFretboard({
                 };
                 const isFilled = filledKeys.has(key);
                 const isMissed = missedKey === key;
+                const isReference = referenceKeys.has(key);
                 const noteInfo = midiToNoteString(midi);
 
                 return (
@@ -108,13 +113,15 @@ export function TrainerFretboard({
                               ? 'bg-red-600 text-white border-red-300'
                               : showTargets
                                 ? 'bg-black/40 text-white/70 border-white/20 hover:border-indigo-400'
+                                : isReference
+                                  ? 'bg-amber-400/90 text-amber-950 border-amber-100 shadow-sm hover:bg-amber-300'
                                 : 'bg-transparent text-transparent border-transparent hover:border-cyan-300 hover:bg-white/10'
                         }`}
                         title={isFilled
                           ? `String ${6 - stringIndex}, fret ${fret} (${noteInfo.note})`
                           : `String ${6 - stringIndex}, fret ${fret}`}
                       >
-                        {isFilled ? noteInfo.note : ''}
+                        {isFilled ? noteInfo.note : isReference ? referenceLabel : ''}
                       </div>
                     )}
                   </div>
