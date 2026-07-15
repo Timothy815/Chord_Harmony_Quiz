@@ -494,7 +494,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
         </button>
       </div>
 
-      {trainerMode === 'chord-construction' ? <ChordConstructionTrainer /> : <>
+      {trainerMode === 'chord-construction' ? <ChordConstructionTrainer practiceTarget={practiceTarget} /> : <>
 
       {showFilters && (
         <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">

@@ -92,19 +92,23 @@ function generateNoteTranspositionCandidates(
 }
 
 function generateTheoryFormulaCandidates(
-  categories: TheoryFormulaCategory[],
+  selectedFormulaKeys: string[],
   direction: 'name-to-formula' | 'formula-to-name' | 'both',
 ): TheoryFormulaCardData[] {
   const directions: ('name-to-formula' | 'formula-to-name')[] = direction === 'both'
     ? ['name-to-formula', 'formula-to-name']
     : [direction];
   return THEORY_FORMULAS
-    .filter(formula => categories.includes(formula.category))
+    .filter(formula => selectedFormulaKeys.includes(theoryFormulaSelectionKey(formula.category, formula.id)))
     .flatMap(formula => directions.map(cardDirection => ({
       category: formula.category,
       formulaId: formula.id,
       direction: cardDirection,
     })));
+}
+
+function theoryFormulaSelectionKey(category: TheoryFormulaCategory, formulaId: string): string {
+  return `${category}:${formulaId}`;
 }
 
 interface SRSResult<T> {
@@ -230,8 +234,16 @@ export function FlashcardShell({
     && ['Scale', 'Mode', 'Chord'].includes(practiceTarget.topic.split(' · ')[0])
     ? practiceTarget.topic.split(' · ')[0].toLowerCase() as TheoryFormulaCategory
     : null;
-  const [tfCategories, setTfCategories] = useState<TheoryFormulaCategory[]>(
-    targetFormulaCategory ? [targetFormulaCategory] : ['scale', 'mode', 'chord']
+  const targetFormulaName = practiceTarget?.module === 'Theory Formulas'
+    ? practiceTarget.topic.split(' · ')[1]
+    : null;
+  const targetFormula = targetFormulaCategory
+    ? THEORY_FORMULAS.find(formula => formula.category === targetFormulaCategory && formula.name === targetFormulaName)
+    : null;
+  const [tfFormulaKeys, setTfFormulaKeys] = useState<string[]>(
+    targetFormula
+      ? [theoryFormulaSelectionKey(targetFormula.category, targetFormula.id)]
+      : THEORY_FORMULAS.map(formula => theoryFormulaSelectionKey(formula.category, formula.id))
   );
   const [tfDirection, setTfDirection] = useState<'name-to-formula' | 'formula-to-name' | 'both'>(
     practiceTarget?.topic.endsWith('· Formula to name') ? 'formula-to-name'
@@ -331,7 +343,7 @@ export function FlashcardShell({
     const ntResult = srsFilter(ntCandidates, c => noteTranspositionKey(c.rootPitchClass, c.intervalSemitones, c.direction), store);
     setNtDeck(ntResult.deck);
 
-    const tfCandidates = generateTheoryFormulaCandidates(tfCategories, tfDirection);
+    const tfCandidates = generateTheoryFormulaCandidates(tfFormulaKeys, tfDirection);
     const tfResult = srsFilter(tfCandidates, c => theoryFormulaKey(c.category, c.formulaId, c.direction), store);
     setTfDeck(tfResult.deck);
 
@@ -345,7 +357,7 @@ export function FlashcardShell({
     setSessionDue(active.dueCount);
     setSessionNew(active.newCount);
     setNextDue(nextDueAfterToday(store));
-  }, [cardMode, noteStrings, fretStart, fretEnd, fretMode, positionFret, intStrings, intIntervals, intDirection, pcDirection, inDirection, ntIntervals, ntDirection, tfCategories, tfDirection]);
+  }, [cardMode, noteStrings, fretStart, fretEnd, fretMode, positionFret, intStrings, intIntervals, intDirection, pcDirection, inDirection, ntIntervals, ntDirection, tfFormulaKeys, tfDirection]);
 
   const restart = useCallback(() => {
     const store = loadStore();
@@ -639,10 +651,20 @@ export function FlashcardShell({
       : [...current, semitones].sort((a, b) => a - b));
   };
 
-  const toggleTfCategory = (category: TheoryFormulaCategory) => {
-    setTfCategories(current => current.includes(category)
-      ? current.filter(value => value !== category)
-      : [...current, category]);
+  const toggleTfFormula = (category: TheoryFormulaCategory, formulaId: string) => {
+    const key = theoryFormulaSelectionKey(category, formulaId);
+    setTfFormulaKeys(current => current.includes(key)
+      ? current.filter(value => value !== key)
+      : [...current, key]);
+  };
+
+  const setTfCategory = (category: TheoryFormulaCategory, selected: boolean) => {
+    const categoryKeys = THEORY_FORMULAS
+      .filter(formula => formula.category === category)
+      .map(formula => theoryFormulaSelectionKey(formula.category, formula.id));
+    setTfFormulaKeys(current => selected
+      ? [...new Set([...current, ...categoryKeys])]
+      : current.filter(key => !categoryKeys.includes(key)));
   };
 
   const isDone = deck.length > 0 && currentIndex >= deck.length;
@@ -1022,34 +1044,54 @@ export function FlashcardShell({
                   <p className="text-xs text-gray-400">Recall scale, mode, and chord construction formulas.</p>
                 </div>
                 <button
-                  onClick={() => setTfCategories([])}
+                  onClick={() => setTfFormulaKeys([])}
                   className="px-3 py-1.5 rounded border border-red-200 bg-white text-sm font-medium text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors"
                 >
                   Clear All
                 </button>
               </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Formula Types</p>
-                <div className="flex flex-wrap gap-2">
-                  {([
-                    { value: 'scale', label: 'Scales' },
-                    { value: 'mode', label: 'Modes' },
-                    { value: 'chord', label: 'Chords' },
-                  ] as { value: TheoryFormulaCategory; label: string }[]).map(option => (
-                    <button
-                      key={option.value}
-                      onClick={() => toggleTfCategory(option.value)}
-                      className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                        tfCategories.includes(option.value)
-                          ? 'bg-amber-600 text-white'
-                          : 'bg-white border border-gray-300 text-gray-600 hover:border-amber-400'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {([
+                { category: 'scale', label: 'Scales' },
+                { category: 'mode', label: 'Modes' },
+                { category: 'chord', label: 'Chords' },
+              ] as { category: TheoryFormulaCategory; label: string }[]).map(group => {
+                const formulas = THEORY_FORMULAS.filter(formula => formula.category === group.category);
+                const selectedCount = formulas.filter(formula =>
+                  tfFormulaKeys.includes(theoryFormulaSelectionKey(formula.category, formula.id))
+                ).length;
+                return (
+                  <div key={group.category}>
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        {group.label} · {selectedCount}/{formulas.length}
+                      </p>
+                      <div className="flex gap-2 text-xs font-semibold">
+                        <button onClick={() => setTfCategory(group.category, true)} className="text-amber-700 hover:text-amber-900">Select All</button>
+                        <button onClick={() => setTfCategory(group.category, false)} className="text-gray-400 hover:text-gray-700">Clear</button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {formulas.map(formula => {
+                        const key = theoryFormulaSelectionKey(formula.category, formula.id);
+                        const selected = tfFormulaKeys.includes(key);
+                        return (
+                          <button
+                            key={key}
+                            onClick={() => toggleTfFormula(formula.category, formula.id)}
+                            className={`rounded px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                              selected
+                                ? 'bg-amber-600 text-white'
+                                : 'border border-gray-300 bg-white text-gray-600 hover:border-amber-400'
+                            }`}
+                          >
+                            {formula.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Direction</p>
                 <div className="flex flex-wrap gap-2">

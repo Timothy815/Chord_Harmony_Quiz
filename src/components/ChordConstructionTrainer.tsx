@@ -16,7 +16,7 @@ import {
 } from '../lib/chordConstruction';
 import { CAGED_ANCHORS, cellKey, getCagedFretRange, ScaleBoxCell } from '../lib/scalePositions';
 import { GUITAR_TUNING, NOTES } from '../lib/musicTheory';
-import { recordPractice } from '../lib/analytics';
+import { PracticeTarget, recordPractice } from '../lib/analytics';
 import { isDue, loadStore, reviewTrainerCard, saveStore, SRSStore } from '../lib/srs';
 import { NoteToken } from './NoteToken';
 import { TrainerFretboard } from './TrainerFretboard';
@@ -58,15 +58,38 @@ const CHORD_INTERVALS: Record<TriadQuality | ShellQuality, number[]> = {
   Major7: [0, 4, 7, 11], Minor7: [0, 3, 7, 10], Dominant7: [0, 4, 7, 10],
 };
 
-export function ChordConstructionTrainer() {
+export function ChordConstructionTrainer({ practiceTarget }: { practiceTarget?: PracticeTarget }) {
+  const targetParts = practiceTarget?.module === 'Fretboard Trainer'
+    ? practiceTarget.topic.split(' · ')
+    : [];
+  const targetFamily: VoicingFamily | null = targetParts[0] === 'Triad Voicing' ? 'triad'
+    : targetParts[0] === 'Shell Voicing' ? 'shell' : null;
+  const targetTriadQuality = TRIAD_QUALITIES.includes(targetParts[1] as TriadQuality)
+    ? targetParts[1] as TriadQuality : null;
+  const targetShellQuality = SHELL_QUALITIES.includes(targetParts[1] as ShellQuality)
+    ? targetParts[1] as ShellQuality : null;
+  const targetStructure: ShellStructure | null = targetParts[2] === 'Rooted' ? 'rooted'
+    : targetParts[2] === 'Rootless' ? 'rootless' : null;
+  const targetInversion = targetStructure ? targetParts[3] : targetParts[2];
+  const targetQuality = targetTriadQuality ?? targetShellQuality;
+  const targetIntervals = targetQuality ? CHORD_INTERVALS[targetQuality] : null;
+  const targetBassInterval = !targetIntervals ? null
+    : targetInversion === 'Root position' || targetInversion === 'Root in bass' ? 0
+      : targetInversion === '1st inversion' ? targetIntervals[1]
+        : targetInversion === '2nd inversion' ? targetIntervals[2]
+          : Number(Object.entries(BASS_LABELS).find(([, label]) => targetInversion === `${label} in bass`)?.[0] ?? NaN);
   const [showFilters, setShowFilters] = useState(false);
-  const [family, setFamily] = useState<VoicingFamily>('triad');
+  const [family, setFamily] = useState<VoicingFamily>(targetFamily ?? 'triad');
   const [roots, setRoots] = useState<number[]>([0]);
-  const [triadQualities, setTriadQualities] = useState<TriadQuality[]>(['Major', 'Minor']);
-  const [shellQualities, setShellQualities] = useState<ShellQuality[]>(SHELL_QUALITIES);
-  const [shellStructures, setShellStructures] = useState<ShellStructure[]>(['rooted']);
-  const [bassIntervals, setBassIntervals] = useState<number[]>([0]);
-  const [stringSetLabels, setStringSetLabels] = useState<string[]>(TRIAD_STRING_SETS.map(set => set.label));
+  const [triadQualities, setTriadQualities] = useState<TriadQuality[]>(targetTriadQuality ? [targetTriadQuality] : ['Major', 'Minor']);
+  const [shellQualities, setShellQualities] = useState<ShellQuality[]>(targetShellQuality ? [targetShellQuality] : SHELL_QUALITIES);
+  const [shellStructures, setShellStructures] = useState<ShellStructure[]>(targetStructure ? [targetStructure] : ['rooted']);
+  const [bassIntervals, setBassIntervals] = useState<number[]>(Number.isFinite(targetBassInterval) ? [targetBassInterval] : [0]);
+  const [stringSetLabels, setStringSetLabels] = useState<string[]>(
+    targetFamily === 'shell' && targetStructure === 'rootless'
+      ? ROOTLESS_STRING_SETS.map(set => set.label)
+      : TRIAD_STRING_SETS.map(set => set.label)
+  );
   const [shapeNames, setShapeNames] = useState<string[]>(CAGED_ANCHORS.map(shape => shape.name));
   const [showFormula, setShowFormula] = useState(false);
   const [showRoots, setShowRoots] = useState(true);
@@ -208,7 +231,9 @@ export function ChordConstructionTrainer() {
     const familyLabel = current.family === 'triad' ? 'Triad Voicing' : 'Shell Voicing';
     recordPractice({
       module: 'Fretboard Trainer',
-      topic: `${familyLabel} · ${current.quality} · ${inversionLabel(current)}`,
+      topic: current.family === 'shell'
+        ? `${familyLabel} · ${current.quality} · ${current.structure === 'rooted' ? 'Rooted' : 'Rootless'} · ${inversionLabel(current)}`
+        : `${familyLabel} · ${current.quality} · ${inversionLabel(current)}`,
       detail: `${NOTES[current.root]} · strings ${current.stringSet.label} · ${current.shape.name}${current.family === 'shell' ? ` · ${current.structure}` : ''}`,
       correct: clean,
       score: Math.round(100 / (finalMissCount + 1)),
