@@ -23,6 +23,7 @@ export default function App() {
   const [fretFocus, setFretFocus] = useState<number | 'all'>('all');
   const [activeChord, setActiveChord] = useState<ActiveChordContext | null>(null);
   const [practiceTarget, setPracticeTarget] = useState<PracticeTarget | undefined>();
+  const [flashcardSessionId, setFlashcardSessionId] = useState(0);
 
   const openView = (nextView: AppView) => {
     setPracticeTarget(undefined);
@@ -31,6 +32,9 @@ export default function App() {
 
   const practiceSkill = (target: PracticeTarget) => {
     setPracticeTarget(target);
+    if (target.module !== 'Fretboard Trainer' && target.module !== 'Chord Quiz') {
+      setFlashcardSessionId(id => id + 1);
+    }
     setView(target.module === 'Fretboard Trainer'
       ? 'trainer'
       : target.module === 'Chord Quiz' ? 'main' : 'flashcards');
@@ -163,9 +167,15 @@ export default function App() {
         </div>
       </header>
 
-      {view === 'flashcards' ? (
-        <FlashcardShell practiceTarget={practiceTarget} />
-      ) : view === 'trainer' ? (
+      <div className={view === 'flashcards' ? '' : 'hidden'}>
+        <FlashcardShell
+          key={flashcardSessionId}
+          practiceTarget={practiceTarget}
+          active={view === 'flashcards'}
+        />
+      </div>
+
+      {view === 'flashcards' ? null : view === 'trainer' ? (
         <FretboardTrainer practiceTarget={practiceTarget} />
       ) : view === 'progress' ? (
         <ProgressDashboard onPracticeSkill={practiceSkill} />

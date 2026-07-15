@@ -140,7 +140,13 @@ function targetString(target: PracticeTarget | undefined): number | null {
   return index >= 0 ? index : null;
 }
 
-export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTarget }) {
+export function FlashcardShell({
+  practiceTarget,
+  active = true,
+}: {
+  practiceTarget?: PracticeTarget;
+  active?: boolean;
+}) {
   const initialMode = practiceTarget?.module === 'Interval Cards' ? 'interval'
     : practiceTarget?.module === 'Note Numbers' ? 'pitch-class'
       : practiceTarget?.module === 'Interval Numbers' ? 'interval-number'
@@ -223,10 +229,30 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
   // SRS state
   const storeRef = useRef<SRSStore>({});
   const attemptStartedAtRef = useRef(performance.now());
+  const attemptElapsedRef = useRef(0);
+  const activeRef = useRef(active);
   const pendingAnalyticsRef = useRef<Record<string, { mistakes: number; durationMs: number }>>({});
   const [sessionDue, setSessionDue] = useState(0);
   const [sessionNew, setSessionNew] = useState(0);
   const [nextDue, setNextDue] = useState<string | null>(null);
+
+  const resetAttemptTimer = () => {
+    attemptElapsedRef.current = 0;
+    attemptStartedAtRef.current = performance.now();
+  };
+
+  const currentAttemptDuration = (now = performance.now()) =>
+    attemptElapsedRef.current + (activeRef.current ? now - attemptStartedAtRef.current : 0);
+
+  useEffect(() => {
+    const now = performance.now();
+    if (activeRef.current && !active) {
+      attemptElapsedRef.current += now - attemptStartedAtRef.current;
+    } else if (!activeRef.current && active) {
+      attemptStartedAtRef.current = now;
+    }
+    activeRef.current = active;
+  }, [active]);
 
   const deck: (NoteCardData | IntervalCardData | PitchClassCardData | IntervalNumberCardData | NoteTranspositionCardData)[] =
     cardMode === 'note' ? noteDeck
@@ -290,7 +316,7 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
     setCorrect(0);
     setSeen(0);
     setAutoResult(null);
-    attemptStartedAtRef.current = performance.now();
+    resetAttemptTimer();
     pendingAnalyticsRef.current = {};
     setIntervalStats({
       completed: 0,
@@ -397,7 +423,7 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
       correct: wasCorrect,
       score: options.score ?? (wasCorrect ? 100 : 0),
       attempts: options.attempts ?? 1,
-      durationMs: options.durationMs ?? now - attemptStartedAtRef.current,
+      durationMs: options.durationMs ?? currentAttemptDuration(now),
       assisted: options.assisted,
     });
   };
@@ -406,7 +432,7 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
     if (!currentCard) return;
     const key = getCardKey(currentCard);
     const now = performance.now();
-    const elapsedMs = now - attemptStartedAtRef.current;
+    const elapsedMs = currentAttemptDuration(now);
     const pending = pendingAnalyticsRef.current[key] ?? { mistakes: 0, durationMs: 0 };
 
     if (!wasCorrect) {
@@ -502,7 +528,7 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
     if (autoResult === 'correct') setCurrentIndex(i => i + 1);
     setFlipped(false);
     setAutoResult(null);
-    attemptStartedAtRef.current = performance.now();
+    resetAttemptTimer();
   };
 
   // Manual scoring: reveal-only note cards only
@@ -513,7 +539,7 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
     setSeen(s => s + 1);
     setCurrentIndex(i => i + 1);
     setFlipped(false);
-    attemptStartedAtRef.current = performance.now();
+    resetAttemptTimer();
   };
 
   const handleTryAgain = () => {
@@ -522,7 +548,7 @@ export function FlashcardShell({ practiceTarget }: { practiceTarget?: PracticeTa
     setSeen(s => s + 1);
     reshuffleCurrentCard();
     setFlipped(false);
-    attemptStartedAtRef.current = performance.now();
+    resetAttemptTimer();
   };
 
   const toggleNoteString = (s: number) => {
