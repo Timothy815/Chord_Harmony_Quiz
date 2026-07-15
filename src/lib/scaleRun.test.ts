@@ -4,6 +4,13 @@ import { GUITAR_TUNING, SCALES } from './musicTheory';
 import { CAGED_ANCHORS, getCagedFretRange } from './scalePositions';
 import { generateRootToRootScaleRun } from './scaleRun';
 
+test('major and minor blues scales use their standard six-note formulas', () => {
+  assert.deepEqual(SCALES.MajorBlues.steps, [0, 2, 3, 4, 7, 9]);
+  assert.equal(SCALES.MajorBlues.pattern, 'W-H-H-WH-W-WH');
+  assert.deepEqual(SCALES.MinorBlues.steps, [0, 3, 5, 6, 7, 10]);
+  assert.equal(SCALES.MinorBlues.pattern, 'WH-W-H-H-WH-W');
+});
+
 test('root-to-root runs contain every scale degree in ascending pitch order', () => {
   for (let root = 0; root < 12; root++) {
     for (const shape of CAGED_ANCHORS) {

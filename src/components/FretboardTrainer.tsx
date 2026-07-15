@@ -43,6 +43,10 @@ const ALL_SHAPE_NAMES = CAGED_ANCHORS.map((shape) => shape.name);
 const SNAP_RADIUS_PX = 40;
 const MISS_FLASH_MS = 500;
 
+function displayTypeName(name: string): string {
+  return name.replace(/([a-z])([A-Z0-9])/g, '$1 $2');
+}
+
 function buildComboPool(
   roots: number[],
   contentTypes: ContentType[],
@@ -432,7 +436,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
   const rootName = currentCombo ? NOTES[currentCombo.root] : '';
   const typeLabel = currentCombo
     ? currentCombo.contentType === 'scale'
-      ? currentCombo.typeName
+      ? displayTypeName(currentCombo.typeName)
       : (CHORDS[currentCombo.typeName as keyof typeof CHORDS].abbr || currentCombo.typeName)
     : '';
   const stepPattern = currentCombo?.contentType === 'scale'
@@ -558,7 +562,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
                         : 'bg-white border border-gray-300 text-gray-600 hover:border-indigo-400'
                     }`}
                   >
-                    {name}
+                    {displayTypeName(name)}
                   </button>
                 ))}
               </div>
