@@ -263,7 +263,7 @@ export function FlashcardShell({
   const [flipped, setFlipped] = useState(false);
   const [correct, setCorrect] = useState(0);
   const [seen, setSeen] = useState(0);
-  const [autoResult, setAutoResult] = useState<'correct' | 'incorrect' | null>(null);
+  const [autoResult, setAutoResult] = useState<'correct' | 'revealed' | null>(null);
   const [intervalStats, setIntervalStats] = useState({
     completed: 0,
     totalScore: 0,
@@ -278,7 +278,7 @@ export function FlashcardShell({
   const attemptStartedAtRef = useRef(performance.now());
   const attemptElapsedRef = useRef(0);
   const activeRef = useRef(active);
-  const pendingAnalyticsRef = useRef<Record<string, { mistakes: number; durationMs: number }>>({});
+  const pendingAnalyticsRef = useRef<Record<string, { mistakes: number; durationMs: number; revealed?: boolean }>>({});
   const [sessionDue, setSessionDue] = useState(0);
   const [sessionNew, setSessionNew] = useState(0);
   const [nextDue, setNextDue] = useState<string | null>(null);
@@ -498,7 +498,7 @@ export function FlashcardShell({
   };
 
   const recordFlashcardAttempt = (wasCorrect: boolean) => {
-    if (!currentCard) return;
+    if (!currentCard) return { revealed: false };
     const key = getCardKey(currentCard);
     const now = performance.now();
     const elapsedMs = currentAttemptDuration(now);
@@ -508,17 +508,20 @@ export function FlashcardShell({
       pendingAnalyticsRef.current[key] = {
         mistakes: pending.mistakes + 1,
         durationMs: pending.durationMs + elapsedMs,
+        revealed: pending.revealed,
       };
-      return;
+      return { revealed: Boolean(pending.revealed) };
     }
 
     const attempts = pending.mistakes + 1;
-    recordAnalytics(true, {
-      score: Math.round(100 / attempts),
+    recordAnalytics(!pending.revealed, {
+      score: pending.revealed ? 0 : Math.round(100 / attempts),
       attempts,
       durationMs: pending.durationMs + elapsedMs,
+      assisted: pending.revealed || undefined,
     });
     delete pendingAnalyticsRef.current[key];
+    return { revealed: Boolean(pending.revealed) };
   };
 
   const reshuffleCurrentCard = () => {
@@ -558,17 +561,30 @@ export function FlashcardShell({
 
   // Auto-scoring: called directly by MC and fretboard-click cards
   const handleAutoCorrect = () => {
-    recordSRS(true);
-    recordFlashcardAttempt(true);
-    setCorrect(c => c + 1);
-    setAutoResult('correct');
+    const result = recordFlashcardAttempt(true);
+    if (!result.revealed) recordSRS(true);
+    if (!result.revealed) setCorrect(c => c + 1);
+    setAutoResult(result.revealed ? 'revealed' : 'correct');
   };
 
   const handleAutoIncorrect = () => {
     recordSRS(false);
     recordFlashcardAttempt(false);
-    reshuffleCurrentCard();
-    setAutoResult('incorrect');
+    resetAttemptTimer();
+    setAutoResult(null);
+  };
+
+  const handleAutoReveal = () => {
+    if (!currentCard) return;
+    const key = getCardKey(currentCard);
+    const pending = pendingAnalyticsRef.current[key] ?? { mistakes: 0, durationMs: 0 };
+    pendingAnalyticsRef.current[key] = {
+      ...pending,
+      durationMs: pending.durationMs + currentAttemptDuration(),
+      revealed: true,
+    };
+    recordSRS(false);
+    resetAttemptTimer();
   };
 
   // Interval cards remain active after a miss so the learner can retry in place.
@@ -578,15 +594,15 @@ export function FlashcardShell({
   };
 
   const handleIntervalCorrect = (result: IntervalAttemptResult) => {
-    recordSRS(true);
-    recordAnalytics(true, {
+    recordSRS(!result.usedShowAnswer);
+    recordAnalytics(!result.usedShowAnswer, {
       score: result.score,
       attempts: result.attempts,
       assisted: result.usedSample || result.usedShowAnswer
         || (cardMode === 'interval' && intLevel === 1 && !intFullChoices),
     });
-    setCorrect((count) => count + 1);
-    setAutoResult('correct');
+    if (!result.usedShowAnswer) setCorrect((count) => count + 1);
+    setAutoResult(result.usedShowAnswer ? 'revealed' : 'correct');
     setIntervalStats((stats) => ({
       completed: stats.completed + 1,
       totalScore: stats.totalScore + result.score,
@@ -600,7 +616,7 @@ export function FlashcardShell({
   // Advance after auto-scored card
   const handleNext = () => {
     setSeen(s => s + 1);
-    if (autoResult === 'correct') setCurrentIndex(i => i + 1);
+    if (autoResult === 'correct' || autoResult === 'revealed') setCurrentIndex(i => i + 1);
     setFlipped(false);
     setAutoResult(null);
     resetAttemptTimer();
@@ -1313,6 +1329,7 @@ export function FlashcardShell({
               onFlip={handleFlip}
               onCorrect={multipleChoice ? handleAutoCorrect : () => {}}
               onIncorrect={multipleChoice ? handleAutoIncorrect : () => {}}
+              onReveal={multipleChoice ? handleAutoReveal : () => {}}
             />
           ) : cardMode === 'interval' ? (
             <IntervalCard
@@ -1338,6 +1355,7 @@ export function FlashcardShell({
               onFlip={handleFlip}
               onCorrect={pcMultipleChoice ? handleAutoCorrect : () => {}}
               onIncorrect={pcMultipleChoice ? handleAutoIncorrect : () => {}}
+              onReveal={pcMultipleChoice ? handleAutoReveal : () => {}}
             />
           ) : cardMode === 'note-transposition' ? (
             <NoteTranspositionCard
@@ -1368,6 +1386,7 @@ export function FlashcardShell({
               onFlip={handleFlip}
               onCorrect={inMultipleChoice ? handleAutoCorrect : () => {}}
               onIncorrect={inMultipleChoice ? handleAutoIncorrect : () => {}}
+              onReveal={inMultipleChoice ? handleAutoReveal : () => {}}
             />
           )}
           {flipped && (
@@ -1388,10 +1407,10 @@ export function FlashcardShell({
                     className={`px-8 py-2 rounded-lg font-medium transition-colors ${
                       autoResult === 'correct'
                         ? 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'
-                        : 'bg-red-50 border border-red-200 text-red-700 hover:bg-red-100'
+                        : 'bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100'
                     }`}
                   >
-                    Next →
+                    {autoResult === 'correct' ? 'Continue →' : 'I understand — Continue →'}
                   </button>
                 </div>
               ) : (

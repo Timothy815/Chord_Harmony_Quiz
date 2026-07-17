@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { playMidiNote } from '../lib/audio';
+import { playMidiNote, playMidiSequence } from '../lib/audio';
 import {
   ChordConstructionChallenge,
   constructionIntervals,
@@ -109,6 +109,7 @@ export function ChordConstructionTrainer({ practiceTarget }: { practiceTarget?: 
   const [sessionComplete, setSessionComplete] = useState(false);
   const [noValidChallenges, setNoValidChallenges] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
+  const [pendingQueue, setPendingQueue] = useState<ChordConstructionChallenge[] | null>(null);
 
   const storeRef = useRef<SRSStore>({});
   const roundStartedAtRef = useRef(0);
@@ -181,6 +182,7 @@ export function ChordConstructionTrainer({ practiceTarget }: { practiceTarget?: 
     setMissedKey(null);
     setRoundId(value => value + 1);
     setSessionComplete(false);
+    setPendingQueue(null);
     usedFormulaRef.current = showFormulaRef.current;
     usedRootHintRef.current = showRootsRef.current;
     usedLimitedPoolRef.current = !useAllNotes;
@@ -197,6 +199,7 @@ export function ChordConstructionTrainer({ practiceTarget }: { practiceTarget?: 
     setRoundsClean(0);
     setRoundsCompleted(0);
     setLastResult(null);
+    setPendingQueue(null);
     setSessionTotal(nextDeck.length);
     setNoValidChallenges(nextDeck.length === 0);
     if (nextDeck.length) loadRound(nextDeck);
@@ -223,7 +226,7 @@ export function ChordConstructionTrainer({ practiceTarget }: { practiceTarget?: 
     missTimerRef.current = setTimeout(() => setMissedKey(null), MISS_FLASH_MS);
   };
 
-  const completeRound = useCallback((finalMissCount: number) => {
+  const completeRound = useCallback((finalMissCount: number, completedKeys: Set<string>) => {
     if (!current) return;
     const key = constructionKey(current);
     const elapsedMs = Math.max(1, Math.round(performance.now() - roundStartedAtRef.current));
@@ -250,11 +253,25 @@ export function ChordConstructionTrainer({ practiceTarget }: { practiceTarget?: 
     setLastResult(clean
       ? `${NOTES[current.root]} ${current.quality}: clean in ${seconds}s${review.improved ? ' · new best' : ''}`
       : `${NOTES[current.root]} ${current.quality}: ${finalMissCount} ${finalMissCount === 1 ? 'miss' : 'misses'} · requeued`);
-    loadRound(clean ? deck : [...deck, current]);
-  }, [current, deck, loadRound]);
+    const completedVoicing = legalVoicings.find(voicing => voicingContainsKeys(voicing, completedKeys));
+    if (completedVoicing) {
+      const midis = completedVoicing.map(cell => GUITAR_TUNING[cell.stringIndex] + cell.fret).sort((a, b) => a - b);
+      void playMidiSequence(midis, 95);
+    }
+    setPendingQueue(clean ? deck : [...deck, current]);
+  }, [current, deck, legalVoicings]);
+
+  const continueAfterResult = () => {
+    if (pendingQueue) {
+      const queue = pendingQueue;
+      setPendingQueue(null);
+      setLastResult(null);
+      loadRound(queue);
+    }
+  };
 
   const attemptPlacement = useCallback((pitchClass: number, targetKey: string) => {
-    if (!current || filledKeys.has(targetKey)) return;
+    if (!current || pendingQueue || filledKeys.has(targetKey)) return;
     const [stringIndex, fret] = targetKey.split(':').map(Number);
     const actualPitchClass = (GUITAR_TUNING[stringIndex] + fret) % 12;
     const nextKeys = new Set(filledKeys).add(targetKey);
@@ -269,8 +286,8 @@ export function ChordConstructionTrainer({ practiceTarget }: { practiceTarget?: 
     void playMidiNote(GUITAR_TUNING[stringIndex] + fret);
     setFilledKeys(nextKeys);
     setSelectedPitchClass(null);
-    if (nextKeys.size === constructionIntervals(current).length) completeRound(missCount);
-  }, [current, filledKeys, legalVoicings, missCount, completeRound]);
+    if (nextKeys.size === constructionIntervals(current).length) completeRound(missCount, nextKeys);
+  }, [current, pendingQueue, filledKeys, legalVoicings, missCount, completeRound]);
 
   const handleCellClick = useCallback((cell: ScaleBoxCell) => {
     if (selectedPitchClass !== null) attemptPlacement(selectedPitchClass, cellKey(cell.stringIndex, cell.fret));
@@ -357,7 +374,7 @@ export function ChordConstructionTrainer({ practiceTarget }: { practiceTarget?: 
         </div>
       )}
 
-      {lastResult && !noValidChallenges && <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-semibold text-amber-900">{lastResult}</div>}
+      {lastResult && !noValidChallenges && <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-semibold text-amber-900"><p>{pendingQueue ? `Voicing complete · ${lastResult}` : lastResult}</p>{pendingQueue && <button onClick={continueAfterResult} className="mt-2 rounded-lg bg-amber-600 px-5 py-2 font-semibold text-white hover:bg-amber-700">Continue →</button>}</div>}
       {noValidChallenges ? <div className="py-16 text-center text-slate-400">No playable voicings match these filters.</div>
         : sessionComplete ? <div className="py-16 text-center"><p className="text-2xl font-bold text-emerald-700">Practice set complete</p><p className="mt-2 text-slate-500">All {sessionTotal} selected voicings were completed cleanly.</p><button onClick={restart} className="mt-6 rounded bg-amber-600 px-5 py-2 font-bold text-white hover:bg-amber-700">Practice Again</button></div>
           : current ? <div>

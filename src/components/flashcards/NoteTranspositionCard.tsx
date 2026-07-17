@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { INTERVAL_NAMES, NOTES } from '../../lib/musicTheory';
 import {
   PITCH_CLASS_LABELS,
@@ -7,6 +7,7 @@ import {
   TranspositionDirection,
 } from '../../lib/noteTransposition';
 import { IntervalAttemptResult, scoreIntervalAttempt } from '../../lib/intervalScoring';
+import { playIntervalSuccess } from '../../lib/audio';
 
 export interface NoteTranspositionCardData {
   rootPitchClass: number;
@@ -33,6 +34,7 @@ export function NoteTranspositionCard({
 }: NoteTranspositionCardProps) {
   const [selected, setSelected] = useState<number | null>(null);
   const [mistakes, setMistakes] = useState(0);
+  const [answerRevealed, setAnswerRevealed] = useState(false);
   const targetPitchClass = transposePitchClass(
     card.rootPitchClass,
     card.intervalSemitones,
@@ -45,11 +47,20 @@ export function NoteTranspositionCard({
   );
   const intervalName = INTERVAL_NAMES[card.intervalSemitones] ?? `${card.intervalSemitones} semitones`;
 
+  useEffect(() => {
+    if (!flipped) return;
+    const rootMidi = 60 + card.rootPitchClass;
+    const targetMidi = card.direction === 'up'
+      ? rootMidi + card.intervalSemitones
+      : rootMidi - card.intervalSemitones;
+    void playIntervalSuccess(rootMidi, targetMidi);
+  }, [flipped, card.rootPitchClass, card.intervalSemitones, card.direction]);
+
   const chooseAnswer = (pitchClass: number) => {
     if (flipped) return;
     setSelected(pitchClass);
     if (pitchClass === targetPitchClass) {
-      const result = scoreIntervalAttempt(mistakes, false, false, false);
+      const result = scoreIntervalAttempt(mistakes, false, false, answerRevealed);
       onFlip();
       onCorrect(result);
     } else {
@@ -87,6 +98,8 @@ export function NoteTranspositionCard({
                 className={`min-h-12 rounded-lg border px-2 py-2 text-sm font-semibold transition-colors ${
                   lastWrong
                     ? 'border-red-300 bg-red-50 text-red-700'
+                    : answerRevealed && pitchClass === targetPitchClass
+                      ? 'border-amber-400 bg-amber-100 text-amber-900'
                     : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-cyan-400 hover:bg-cyan-50'
                 }`}
               >
@@ -103,8 +116,17 @@ export function NoteTranspositionCard({
         </div>
       )}
 
+      {!flipped && (
+        <div className="mt-4 text-center">
+          <button onClick={() => setAnswerRevealed(true)} disabled={answerRevealed} className="text-sm font-semibold text-amber-700 hover:text-amber-900 disabled:text-amber-400">
+            {answerRevealed ? `Answer shown: ${PITCH_CLASS_LABELS[targetPitchClass]}` : 'Show Answer'}
+          </button>
+        </div>
+      )}
+
       {flipped && (
         <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center">
+          <p className={`mb-1 text-sm font-bold ${answerRevealed ? 'text-amber-700' : 'text-emerald-700'}`}>{answerRevealed ? 'Answer revealed — review the spelling.' : 'Correct — transposition calculated.'}</p>
           <p className="text-lg font-bold text-emerald-800">Correct: {PITCH_CLASS_LABELS[targetPitchClass]}</p>
           <p className="mt-1 text-sm text-emerald-700">
             Properly spelled as <strong>{strictSpelling}</strong> for this interval.

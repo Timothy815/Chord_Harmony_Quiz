@@ -8,7 +8,7 @@ import {
 import { findBestVoicingInWindow, getCagedVoicing } from '../lib/guitarVoicings';
 import { TrainerFretboard } from './TrainerFretboard';
 import { NoteToken } from './NoteToken';
-import { playMidiNote } from '../lib/audio';
+import { playMidiNote, playMidiSequence } from '../lib/audio';
 import {
   SRSStore, loadStore, saveStore, trainerKey, scaleRunKey, isDue, reviewTrainerCard,
 } from '../lib/srs';
@@ -164,6 +164,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
   const [sessionTotal, setSessionTotal] = useState(0);
   const [sessionComplete, setSessionComplete] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
+  const [pendingQueue, setPendingQueue] = useState<TrainerCombo[] | null>(null);
 
   const storeRef = useRef<SRSStore>({});
   const roundStartedAtRef = useRef(0);
@@ -211,6 +212,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
         setRoundId((value) => value + 1);
         setNoValidCombos(false);
         setSessionComplete(false);
+        setPendingQueue(null);
         usedStepPatternInRoundRef.current = trainerMode === 'scale-run' && showStepPatternRef.current;
         usedLimitedPoolInRoundRef.current = trainerMode === 'scale-run' && !scaleRunAllNotes;
         roundStartedAtRef.current = performance.now();
@@ -241,6 +243,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
     setRoundsClean(0);
     setSessionComplete(false);
     setLastResult(null);
+    setPendingQueue(null);
 
     if (pool.length === 0) {
       setDeck([]);
@@ -343,10 +346,23 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
       setLastResult(`${currentCombo.shape.name}: clean in ${seconds}s · best ${(previousBest / 1000).toFixed(1)}s`);
     }
 
-    loadRound(wasClean ? deck : [...deck, currentCombo]);
-  }, [currentCombo, deck, loadRound, trainerMode]);
+    const successMidis = [...new Set(filteredCells.map(cell => GUITAR_TUNING[cell.stringIndex] + cell.fret))]
+      .sort((a, b) => a - b);
+    void playMidiSequence(successMidis, currentCombo.contentType === 'chord' ? 90 : 130);
+    setPendingQueue(wasClean ? deck : [...deck, currentCombo]);
+  }, [currentCombo, deck, filteredCells, trainerMode]);
+
+  const continueAfterResult = () => {
+    if (pendingQueue) {
+      const queue = pendingQueue;
+      setPendingQueue(null);
+      setLastResult(null);
+      loadRound(queue);
+    }
+  };
 
   const attemptPlacement = useCallback((pitchClass: number, targetKey: string) => {
+    if (pendingQueue) return;
     const cell = filteredCells.find((candidate) => cellKey(candidate.stringIndex, candidate.fret) === targetKey);
     if (filledKeys.has(targetKey)) {
       return;
@@ -396,7 +412,7 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
     setMissCount((count) => count + 1);
     flashMiss(targetKey);
     setSelectedPitchClass(null);
-  }, [filteredCells, filledKeys, missCount, completeRound, flashMiss, trainerMode]);
+  }, [filteredCells, filledKeys, missCount, completeRound, flashMiss, trainerMode, pendingQueue]);
 
   const handleTokenDragEnd = useCallback((pitchClass: number, point: { x: number; y: number }) => {
     let nearestKey: string | null = null;
@@ -655,7 +671,8 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
 
       {lastResult && !noValidCombos && (
         <div className="mb-5 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-center text-sm font-medium text-indigo-800">
-          {lastResult}
+          <p>{pendingQueue ? `Correct placement complete · ${lastResult}` : lastResult}</p>
+          {pendingQueue && <button onClick={continueAfterResult} className="mt-2 rounded-lg bg-indigo-600 px-5 py-2 font-semibold text-white hover:bg-indigo-700">Continue →</button>}
         </div>
       )}
 

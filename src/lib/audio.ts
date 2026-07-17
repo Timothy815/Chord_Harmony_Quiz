@@ -52,6 +52,15 @@ export async function playMidiNote(midi: number) {
   trigger(midiToToneNote(midi));
 }
 
+export async function playMidiSequence(midis: number[], gapMs = 140) {
+  if (midis.length === 0) return;
+  await resume();
+  const now = Tone.now();
+  midis.forEach((midi, index) => {
+    sampler!.triggerAttackRelease(midiToToneNote(midi), 0.45, now + (index * gapMs) / 1000, 0.88);
+  });
+}
+
 export async function playGuitarNote(frequency: number) {
   await resume();
   trigger(`${frequency.toFixed(3)}hz`);

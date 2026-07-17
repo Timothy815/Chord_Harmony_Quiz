@@ -35,6 +35,7 @@ export function TheoryFormulaCard({
 }: TheoryFormulaCardProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [mistakes, setMistakes] = useState(0);
+  const [answerRevealed, setAnswerRevealed] = useState(false);
   const formula = THEORY_FORMULAS.find(item =>
     item.category === card.category && item.id === card.formulaId
   );
@@ -46,7 +47,7 @@ export function TheoryFormulaCard({
     if (flipped) return;
     setSelected(value);
     if (value === correctValue) {
-      const result = scoreIntervalAttempt(mistakes, false, false, false);
+      const result = scoreIntervalAttempt(mistakes, false, false, answerRevealed);
       onFlip();
       onCorrect(result);
     } else {
@@ -87,6 +88,8 @@ export function TheoryFormulaCard({
                 className={`min-h-12 rounded-lg border px-2 py-2 text-sm font-semibold transition-colors ${
                   isLastWrong
                     ? 'border-red-300 bg-red-50 text-red-700'
+                    : answerRevealed && value === correctValue
+                      ? 'border-amber-400 bg-amber-100 text-amber-900'
                     : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-amber-400 hover:bg-amber-50'
                 } ${card.direction === 'name-to-formula' ? 'font-mono' : ''}`}
               >
@@ -103,8 +106,17 @@ export function TheoryFormulaCard({
         </div>
       )}
 
+      {!flipped && (
+        <div className="mt-4 text-center">
+          <button onClick={() => setAnswerRevealed(true)} disabled={answerRevealed} className="text-sm font-semibold text-amber-700 hover:text-amber-900 disabled:text-amber-400">
+            {answerRevealed ? `Answer shown: ${formula.name} — ${formula.formula}` : 'Show Answer'}
+          </button>
+        </div>
+      )}
+
       {flipped && (
         <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center">
+          <p className={`mb-1 text-sm font-bold ${answerRevealed ? 'text-amber-700' : 'text-emerald-700'}`}>{answerRevealed ? 'Answer revealed — review the formula.' : 'Correct — formula recalled.'}</p>
           <p className="text-lg font-bold text-emerald-800">{formula.name}: {formula.formula}</p>
           <p className="mt-1 text-sm text-emerald-700">{formula.description}</p>
         </div>

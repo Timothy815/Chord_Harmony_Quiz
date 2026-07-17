@@ -16,6 +16,7 @@ interface NoteCardProps {
   onFlip: () => void;
   onCorrect: () => void;
   onIncorrect: () => void;
+  onReveal: () => void;
 }
 
 function getDistractors(correctMidi: number): string[] {
@@ -26,10 +27,11 @@ function getDistractors(correctMidi: number): string[] {
     .slice(0, 3);
 }
 
-export function NoteCard({ card, flipped, multipleChoice, fullChoices = false, onFlip, onCorrect, onIncorrect }: NoteCardProps) {
+export function NoteCard({ card, flipped, multipleChoice, fullChoices = false, onFlip, onCorrect, onIncorrect, onReveal }: NoteCardProps) {
   const midi = GUITAR_TUNING[card.stringIndex] + card.fret;
   const { note, octave } = midiToNoteString(midi);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [answerRevealed, setAnswerRevealed] = useState(false);
 
   const distractors = useMemo(() => getDistractors(midi), [midi]);
   const options = useMemo(
@@ -47,8 +49,12 @@ export function NoteCard({ card, flipped, multipleChoice, fullChoices = false, o
 
   const handleOptionClick = (opt: string) => {
     setSelectedOption(opt);
-    onFlip();
-    if (opt === note) onCorrect(); else onIncorrect();
+    if (opt === note) {
+      onFlip();
+      onCorrect();
+    } else {
+      onIncorrect();
+    }
   };
 
   return (
@@ -68,7 +74,13 @@ export function NoteCard({ card, flipped, multipleChoice, fullChoices = false, o
                 <button
                   key={opt}
                   onClick={() => handleOptionClick(opt)}
-                  className="py-3 px-4 rounded-lg border text-sm font-semibold transition-colors bg-indigo-50 border-indigo-200 text-indigo-800 hover:bg-indigo-100 active:bg-indigo-200"
+                  className={`py-3 px-4 rounded-lg border text-sm font-semibold transition-colors ${
+                    selectedOption === opt && opt !== note
+                      ? 'bg-red-50 border-red-300 text-red-700'
+                      : answerRevealed && opt === note
+                        ? 'bg-amber-100 border-amber-400 text-amber-900'
+                        : 'bg-indigo-50 border-indigo-200 text-indigo-800 hover:bg-indigo-100 active:bg-indigo-200'
+                  }`}
                 >
                   {opt}
                 </button>
@@ -82,17 +94,23 @@ export function NoteCard({ card, flipped, multipleChoice, fullChoices = false, o
               Reveal
             </button>
           )}
+          {multipleChoice && selectedOption && selectedOption !== note && (
+            <p className="mt-4 text-sm font-semibold text-red-700">Not quite. Stay with this card and try again.</p>
+          )}
+          {multipleChoice && (
+            <button onClick={() => { setAnswerRevealed(true); onReveal(); }} disabled={answerRevealed} className="mt-4 text-sm font-semibold text-amber-700 hover:text-amber-900 disabled:text-amber-400">
+              {answerRevealed ? `Answer shown: ${note}` : 'Show Answer'}
+            </button>
+          )}
         </div>
       )}
 
       {/* Back face */}
       {flipped && (
         <div className="flex flex-col items-center p-8">
-          {selectedOption && selectedOption !== note && (
-            <p className="text-red-500 text-sm mb-3">
-              ✗ You picked <strong>{selectedOption}</strong> — correct: <strong>{note}</strong>
-            </p>
-          )}
+          <p className={`mb-3 text-sm font-bold ${answerRevealed ? 'text-amber-700' : 'text-emerald-700'}`}>
+            {answerRevealed ? 'Answer revealed — review it before continuing.' : 'Correct — well done.'}
+          </p>
           <p className="text-7xl font-bold text-indigo-600 mb-1">{note}</p>
           <p className="text-gray-400 text-lg mb-2">{note}{octave}</p>
           <div className="w-full max-w-xs">

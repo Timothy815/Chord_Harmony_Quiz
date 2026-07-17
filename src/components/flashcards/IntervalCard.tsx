@@ -206,6 +206,8 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
         && (userDot.stringIndex !== target.stringIndex || userDot.fret !== target.fret)) {
         dots.push({ stringIndex: target.stringIndex, fret: target.fret, type: 'interval' });
       }
+    } else if (answerRevealed) {
+      dots.push({ stringIndex: target.stringIndex, fret: target.fret, type: 'interval' });
     }
   }
 
@@ -422,7 +424,13 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
             <button
               key={opt.semitones}
               onClick={() => handleL1(opt.semitones)}
-              className="py-2 px-3 rounded-lg border text-sm font-medium bg-indigo-50 border-indigo-200 text-indigo-800 hover:bg-indigo-100 transition-colors"
+              className={`py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                answerRevealed && opt.semitones === card.intervalSemitones
+                  ? 'bg-amber-100 border-amber-400 text-amber-900'
+                  : l1Answer === opt.semitones && opt.semitones !== card.intervalSemitones
+                    ? 'bg-red-50 border-red-300 text-red-700'
+                    : 'bg-indigo-50 border-indigo-200 text-indigo-800 hover:bg-indigo-100'
+              }`}
             >
               {opt.name}
               {showSemitones && (
@@ -452,7 +460,7 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
         </div>
       )}
 
-      {!flipped && ((level === 2 && l2Selected && !l2IsCorrect) || (level === 3 && produceWrong)) && (
+      {!flipped && (
         <div className="flex justify-center mt-3">
           <button
             onClick={() => {
@@ -462,7 +470,7 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
             disabled={answerRevealed}
             className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-default transition-colors"
           >
-            {answerRevealed ? 'Answer Shown' : 'Show Answer'}
+            {answerRevealed ? 'Answer Shown — choose it when ready' : 'Show Answer'}
           </button>
         </div>
       )}
