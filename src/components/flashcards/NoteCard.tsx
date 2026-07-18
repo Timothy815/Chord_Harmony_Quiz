@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { GUITAR_TUNING, STRING_NAMES, midiToNoteString, NOTES } from '../../lib/musicTheory';
 import { playMidiNote } from '../../lib/audio';
 import { Stave } from '../Stave';
+import { shuffle } from '../../lib/shuffle';
 
 export interface NoteCardData {
   stringIndex: number;
@@ -21,10 +22,7 @@ interface NoteCardProps {
 
 function getDistractors(correctMidi: number): string[] {
   const correctPc = correctMidi % 12;
-  return NOTES
-    .filter((_, i) => i !== correctPc)
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 3);
+  return shuffle(NOTES.filter((_, i) => i !== correctPc)).slice(0, 3);
 }
 
 export function NoteCard({ card, flipped, multipleChoice, fullChoices = false, onFlip, onCorrect, onIncorrect, onReveal }: NoteCardProps) {
@@ -36,8 +34,8 @@ export function NoteCard({ card, flipped, multipleChoice, fullChoices = false, o
   const distractors = useMemo(() => getDistractors(midi), [midi]);
   const options = useMemo(
     () => fullChoices
-      ? [...NOTES].sort(() => Math.random() - 0.5)
-      : [note, ...distractors].sort(() => Math.random() - 0.5),
+      ? shuffle(NOTES)
+      : shuffle([note, ...distractors]),
     [note, distractors, fullChoices]
   );
 

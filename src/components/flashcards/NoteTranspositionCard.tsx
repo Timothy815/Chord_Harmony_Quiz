@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { INTERVAL_NAMES, NOTES } from '../../lib/musicTheory';
 import {
   PITCH_CLASS_LABELS,
@@ -8,6 +8,7 @@ import {
 } from '../../lib/noteTransposition';
 import { IntervalAttemptResult, scoreIntervalAttempt } from '../../lib/intervalScoring';
 import { playIntervalSuccess } from '../../lib/audio';
+import { shuffle } from '../../lib/shuffle';
 
 export interface NoteTranspositionCardData {
   rootPitchClass: number;
@@ -46,6 +47,10 @@ export function NoteTranspositionCard({
     card.direction,
   );
   const intervalName = INTERVAL_NAMES[card.intervalSemitones] ?? `${card.intervalSemitones} semitones`;
+  const pitchChoices = useMemo(
+    () => shuffle(PITCH_CLASS_LABELS.map((label, pitchClass) => ({ label, pitchClass }))),
+    [card.rootPitchClass, card.intervalSemitones, card.direction],
+  );
 
   useEffect(() => {
     if (!flipped) return;
@@ -89,7 +94,7 @@ export function NoteTranspositionCard({
 
       {!flipped && (
         <div className="mx-auto mt-6 grid max-w-lg grid-cols-3 gap-2 sm:grid-cols-4">
-          {PITCH_CLASS_LABELS.map((label, pitchClass) => {
+          {pitchChoices.map(({ label, pitchClass }) => {
             const lastWrong = selected === pitchClass && pitchClass !== targetPitchClass;
             return (
               <button

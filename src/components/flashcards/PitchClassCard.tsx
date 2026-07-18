@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { playMidiNote } from '../../lib/audio';
+import { shuffle } from '../../lib/shuffle';
 
 export interface PitchClassCardData {
   pitchClass: number;
@@ -38,22 +39,18 @@ export function PitchClassCard({
   const options = useMemo(() => {
     if (fullChoices) {
       return card.direction === 'note-to-number'
-        ? Array.from({ length: 12 }, (_, i) => String(i)).sort(() => Math.random() - 0.5)
-        : [...NOTE_NAMES].sort(() => Math.random() - 0.5);
+        ? shuffle(Array.from({ length: 12 }, (_, i) => String(i)))
+        : shuffle(NOTE_NAMES);
     }
     if (card.direction === 'note-to-number') {
-      const wrongs = Array.from({ length: 12 }, (_, i) => i)
-        .filter(i => i !== card.pitchClass)
-        .sort(() => Math.random() - 0.5)
+      const wrongs = shuffle(Array.from({ length: 12 }, (_, i) => i)
+        .filter(i => i !== card.pitchClass))
         .slice(0, 3)
         .map(String);
-      return [String(card.pitchClass), ...wrongs].sort(() => Math.random() - 0.5);
+      return shuffle([String(card.pitchClass), ...wrongs]);
     } else {
-      const wrongs = NOTE_NAMES
-        .filter((_, i) => i !== card.pitchClass)
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 3);
-      return [noteName, ...wrongs].sort(() => Math.random() - 0.5);
+      const wrongs = shuffle(NOTE_NAMES.filter((_, i) => i !== card.pitchClass)).slice(0, 3);
+      return shuffle([noteName, ...wrongs]);
     }
   }, [card, fullChoices]);
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { INTERVAL_NAMES } from '../../lib/musicTheory';
 import { playIntervalSuccess } from '../../lib/audio';
+import { shuffle } from '../../lib/shuffle';
 
 export interface IntervalNumberCardData {
   semitones: number; // 1-12
@@ -39,23 +40,20 @@ export function IntervalNumberCard({
   const options = useMemo(() => {
     if (fullChoices) {
       return card.direction === 'name-to-number'
-        ? ALL_SEMITONES.map(String).sort(() => Math.random() - 0.5)
-        : ALL_SEMITONES.map(s => INTERVAL_NAMES[s]).sort(() => Math.random() - 0.5);
+        ? shuffle(ALL_SEMITONES.map(String))
+        : shuffle(ALL_SEMITONES.map(s => INTERVAL_NAMES[s]));
     }
     if (card.direction === 'name-to-number') {
-      const wrongs = ALL_SEMITONES
-        .filter(s => s !== card.semitones)
-        .sort(() => Math.random() - 0.5)
+      const wrongs = shuffle(ALL_SEMITONES.filter(s => s !== card.semitones))
         .slice(0, 3)
         .map(String);
-      return [String(card.semitones), ...wrongs].sort(() => Math.random() - 0.5);
+      return shuffle([String(card.semitones), ...wrongs]);
     } else {
-      const wrongs = ALL_SEMITONES
+      const wrongs = shuffle(ALL_SEMITONES
         .filter(s => s !== card.semitones)
-        .map(s => INTERVAL_NAMES[s])
-        .sort(() => Math.random() - 0.5)
+        .map(s => INTERVAL_NAMES[s]))
         .slice(0, 3);
-      return [intervalName, ...wrongs].sort(() => Math.random() - 0.5);
+      return shuffle([intervalName, ...wrongs]);
     }
   }, [card, fullChoices]);
 

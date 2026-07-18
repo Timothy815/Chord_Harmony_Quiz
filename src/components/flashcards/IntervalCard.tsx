@@ -8,6 +8,7 @@ import {
   isSameGuitarPitch,
   STANDARD_TUNING_GAPS,
 } from '../../lib/guitarTuningIntervals';
+import { shuffle } from '../../lib/shuffle';
 
 export interface IntervalCardData {
   rootStringIndex: number;
@@ -119,7 +120,10 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
 
   if (!target) return null;
 
-  const win = computeWindow(card.rootStringIndex, card.rootFret, target.stringIndex, target.fret);
+  const win = useMemo(
+    () => computeWindow(card.rootStringIndex, card.rootFret, target.stringIndex, target.fret),
+    [card.rootStringIndex, card.rootFret, target.stringIndex, target.fret],
+  );
   const correctName = INTERVAL_NAMES[card.intervalSemitones] ?? `${card.intervalSemitones} st`;
 
   // Always display the full 6-string neck so the learner sees spatial context
@@ -130,22 +134,20 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
 
   const l1Options = useMemo(() => {
     if (fullIdentifyChoices) {
-      return [...ALL_INTERVAL_OPTIONS].sort(() => Math.random() - 0.5);
+      return shuffle(ALL_INTERVAL_OPTIONS);
     }
-    const others = ALL_INTERVAL_OPTIONS
-      .filter(o => o.semitones !== card.intervalSemitones)
-      .sort(() => Math.random() - 0.5)
+    const others = shuffle(ALL_INTERVAL_OPTIONS
+      .filter(o => o.semitones !== card.intervalSemitones))
       .slice(0, 3);
-    return [{ semitones: card.intervalSemitones, name: correctName }, ...others]
-      .sort(() => Math.random() - 0.5);
+    return shuffle([{ semitones: card.intervalSemitones, name: correctName }, ...others]);
   }, [card, fullIdentifyChoices]);
 
   const l2Candidates = useMemo(() => {
     const correct = { stringIndex: target.stringIndex, fret: target.fret, isCorrect: true };
     const targetPc = (GUITAR_TUNING[card.rootStringIndex] + card.rootFret + card.intervalSemitones) % 12;
     const wrongs: { stringIndex: number; fret: number; isCorrect: boolean }[] = [];
-    for (let s = win.startString; s <= win.endString && wrongs.length < 3; s++) {
-      for (let f = win.startFret; f <= win.endFret && wrongs.length < 3; f++) {
+    for (let s = win.startString; s <= win.endString; s++) {
+      for (let f = win.startFret; f <= win.endFret; f++) {
         if (s === target.stringIndex && f === target.fret) continue;
         if (s === card.rootStringIndex && f === card.rootFret) continue;
         if ((GUITAR_TUNING[s] + f) % 12 !== targetPc) {
@@ -153,7 +155,7 @@ export function IntervalCard({ card, level, flipped, showSemitones = false, allo
         }
       }
     }
-    return [correct, ...wrongs].sort(() => Math.random() - 0.5);
+    return shuffle([correct, ...shuffle(wrongs).slice(0, 3)]);
   }, [card, target, win]);
 
   // Build dots for MiniFretboard

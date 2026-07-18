@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { NOTES, CHORDS, buildChord, SCALES, buildScale, getMidiFromNoteStrAndOctave } from '../lib/musicTheory';
 import { recordPractice } from '../lib/analytics';
 import type { PracticeTarget } from '../lib/analytics';
+import { shuffle } from '../lib/shuffle';
 
 interface QuizModuleProps {
   activeNotes: number[];
@@ -77,12 +78,8 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes, practi
     const targetChordFull = `${randomRoot} ${randomType}`;
 
     // All options share the same root — only chord type varies, forcing the user to identify intervals
-    const distractorTypes = chordTypes
-      .filter(t => t !== randomType)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3);
-    const shuffledOptions = [targetChordFull, ...distractorTypes.map(t => `${randomRoot} ${t}`)]
-      .sort(() => Math.random() - 0.5);
+    const distractorTypes = shuffle(chordTypes.filter(t => t !== randomType)).slice(0, 3);
+    const shuffledOptions = shuffle([targetChordFull, ...distractorTypes.map(t => `${randomRoot} ${t}`)]);
     setOptions(shuffledOptions);
 
     if (quizType === 'identify_chord') {

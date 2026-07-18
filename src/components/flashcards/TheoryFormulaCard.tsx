@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { IntervalAttemptResult, scoreIntervalAttempt } from '../../lib/intervalScoring';
 import {
   formulasForCategory,
   THEORY_FORMULAS,
   TheoryFormulaCategory,
 } from '../../lib/theoryFormulas';
+import { shuffle } from '../../lib/shuffle';
 
 export interface TheoryFormulaCardData {
   category: TheoryFormulaCategory;
@@ -41,7 +42,10 @@ export function TheoryFormulaCard({
   );
   if (!formula) return null;
 
-  const choices = formulasForCategory(card.category);
+  const choices = useMemo(
+    () => shuffle(formulasForCategory(card.category)),
+    [card.category],
+  );
   const correctValue = card.direction === 'name-to-formula' ? formula.formula : formula.id;
   const choose = (value: string) => {
     if (flipped) return;
