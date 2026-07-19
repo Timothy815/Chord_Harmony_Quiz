@@ -18,6 +18,7 @@ interface NotationIntervalCardProps {
   onFlip: () => void;
   onCorrect: (result: IntervalAttemptResult) => void;
   onIncorrect: () => void;
+  includeAdvancedQualities?: boolean;
 }
 
 function StaffDyad({
@@ -84,7 +85,7 @@ function StaffDyad({
   );
 }
 
-export function NotationIntervalCard({ card, flipped, onFlip, onCorrect, onIncorrect }: NotationIntervalCardProps) {
+export function NotationIntervalCard({ card, flipped, onFlip, onCorrect, onIncorrect, includeAdvancedQualities = false }: NotationIntervalCardProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [mistakes, setMistakes] = useState(0);
   const [answerRevealed, setAnswerRevealed] = useState(false);
@@ -104,12 +105,15 @@ export function NotationIntervalCard({ card, flipped, onFlip, onCorrect, onIncor
   const correctAnswer = intervalAnswer(card);
   const choices = useMemo(() => {
     if (card.level === 'generic') return shuffle(Object.values(GENERIC_INTERVAL_LABELS).map(label => `Generic ${label}`));
-    return shuffle([...new Set(NOTATION_INTERVAL_DEFINITIONS.map(definition => intervalAnswer({
+    const definitions = includeAdvancedQualities
+      ? NOTATION_INTERVAL_DEFINITIONS
+      : NOTATION_INTERVAL_DEFINITIONS.filter(definition => definition.quality !== 'Diminished' && definition.quality !== 'Augmented');
+    return shuffle([...new Set(definitions.map(definition => intervalAnswer({
       clef: card.clef,
       level: 'quality',
       ...definition,
     })))]);
-  }, [card.clef, card.level]);
+  }, [card.clef, card.level, includeAdvancedQualities]);
 
   useEffect(() => {
     if (flipped) void playIntervalSuccess(lowerMidi, upperMidi);

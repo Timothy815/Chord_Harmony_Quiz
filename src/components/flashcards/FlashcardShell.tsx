@@ -125,6 +125,7 @@ function generateNotationIntervalCandidates(
   clefs: NotationClef[],
   levels: NotationIntervalLevel[],
   generics: number[],
+  includeAdvancedQualities: boolean,
 ): NotationIntervalCardData[] {
   const cards: NotationIntervalCardData[] = [];
   for (const clef of clefs) {
@@ -135,7 +136,10 @@ function generateNotationIntervalCandidates(
         }
       } else {
         for (const definition of NOTATION_INTERVAL_DEFINITIONS) {
-          if (generics.includes(definition.generic)) cards.push({ clef, level, ...definition });
+          const isAdvanced = definition.quality === 'Diminished' || definition.quality === 'Augmented';
+          if (generics.includes(definition.generic) && (includeAdvancedQualities || !isAdvanced)) {
+            cards.push({ clef, level, ...definition });
+          }
         }
       }
     }
@@ -300,6 +304,9 @@ export function FlashcardShell({
   const [notationGenerics, setNotationGenerics] = useState<number[]>(
     Number.isFinite(targetNotationGeneric) ? [targetNotationGeneric] : [2, 3, 4, 5, 6, 7, 8]
   );
+  const [notationAdvanced, setNotationAdvanced] = useState(
+    targetNotationParts[0]?.startsWith('Diminished') || targetNotationParts[0]?.startsWith('Augmented')
+  );
 
   // Session state
   const [noteDeck, setNoteDeck] = useState<NoteCardData[]>([]);
@@ -400,7 +407,7 @@ export function FlashcardShell({
     const tfResult = srsFilter(tfCandidates, c => theoryFormulaKey(c.category, c.formulaId, c.direction), store);
     setTfDeck(tfResult.deck);
 
-    const notationCandidates = generateNotationIntervalCandidates(notationClefs, notationLevels, notationGenerics);
+    const notationCandidates = generateNotationIntervalCandidates(notationClefs, notationLevels, notationGenerics, notationAdvanced);
     const notationResult = srsFilter(notationCandidates, notationIntervalKey, store);
     setNotationDeck(notationResult.deck);
 
@@ -415,7 +422,7 @@ export function FlashcardShell({
     setSessionDue(active.dueCount);
     setSessionNew(active.newCount);
     setNextDue(nextDueAfterToday(store));
-  }, [cardMode, noteStrings, fretStart, fretEnd, fretMode, positionFret, intStrings, intIntervals, intDirection, pcDirection, inDirection, ntIntervals, ntDirection, tfFormulaKeys, tfDirection, notationClefs, notationLevels, notationGenerics]);
+  }, [cardMode, noteStrings, fretStart, fretEnd, fretMode, positionFret, intStrings, intIntervals, intDirection, pcDirection, inDirection, ntIntervals, ntDirection, tfFormulaKeys, tfDirection, notationClefs, notationLevels, notationGenerics, notationAdvanced]);
 
   const restart = useCallback(() => {
     const store = loadStore();
@@ -1007,6 +1014,13 @@ export function FlashcardShell({
                   ))}
                 </div>
               </div>
+              <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                <input type="checkbox" checked={notationAdvanced} onChange={event => setNotationAdvanced(event.target.checked)} className="mt-0.5 rounded" />
+                <span>
+                  <strong className="block text-slate-800">Include advanced spellings</strong>
+                  Diminished and augmented intervals, including enharmonic notes such as F♭ and E♯.
+                </span>
+              </label>
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Intervals</p>
                 <div className="flex flex-wrap gap-2">
@@ -1479,6 +1493,7 @@ export function FlashcardShell({
               onFlip={handleFlip}
               onCorrect={handleIntervalCorrect}
               onIncorrect={handleIntervalIncorrect}
+              includeAdvancedQualities={notationAdvanced}
             />
           ) : cardMode === 'theory-formula' ? (
             <TheoryFormulaCard
