@@ -9,6 +9,16 @@ import { IntervalNumberCard, IntervalNumberCardData } from './IntervalNumberCard
 import { NoteTranspositionCard, NoteTranspositionCardData } from './NoteTranspositionCard';
 import { TheoryFormulaCard, TheoryFormulaCardData } from './TheoryFormulaCard';
 import { THEORY_FORMULAS, TheoryFormulaCategory } from '../../lib/theoryFormulas';
+import { NotationIntervalCard } from './NotationIntervalCard';
+import {
+  GENERIC_INTERVAL_LABELS,
+  intervalAnswer,
+  NotationClef,
+  NotationIntervalCardData,
+  NotationIntervalLevel,
+  notationIntervalKey,
+  NOTATION_INTERVAL_DEFINITIONS,
+} from '../../lib/notationIntervals';
 import {
   SRSStore, CardRecord,
   loadStore, saveStore,
@@ -111,6 +121,28 @@ function theoryFormulaSelectionKey(category: TheoryFormulaCategory, formulaId: s
   return `${category}:${formulaId}`;
 }
 
+function generateNotationIntervalCandidates(
+  clefs: NotationClef[],
+  levels: NotationIntervalLevel[],
+  generics: number[],
+): NotationIntervalCardData[] {
+  const cards: NotationIntervalCardData[] = [];
+  for (const clef of clefs) {
+    for (const level of levels) {
+      if (level === 'generic') {
+        for (const generic of generics) {
+          cards.push({ clef, level, generic, quality: 'Perfect', semitones: 0 });
+        }
+      } else {
+        for (const definition of NOTATION_INTERVAL_DEFINITIONS) {
+          if (generics.includes(definition.generic)) cards.push({ clef, level, ...definition });
+        }
+      }
+    }
+  }
+  return cards;
+}
+
 interface SRSResult<T> {
   deck: T[];
   dueCount: number;
@@ -149,7 +181,7 @@ const INTERVAL_OPTIONS = [
   { s: 10, n: 'Min 7th' }, { s: 11, n: 'Maj 7th' }, { s: 12, n: 'Octave' },
 ];
 
-type CardMode = 'note' | 'interval' | 'pitch-class' | 'interval-number' | 'note-transposition' | 'theory-formula';
+type CardMode = 'note' | 'interval' | 'pitch-class' | 'interval-number' | 'note-transposition' | 'theory-formula' | 'notation-interval';
 
 function targetInterval(target: PracticeTarget | undefined): number | null {
   if (!target) return null;
@@ -174,6 +206,7 @@ export function FlashcardShell({
       : practiceTarget?.module === 'Interval Numbers' ? 'interval-number'
         : practiceTarget?.module === 'Note Transposition' ? 'note-transposition'
           : practiceTarget?.module === 'Theory Formulas' ? 'theory-formula'
+            : practiceTarget?.module === 'Notation Intervals' ? 'notation-interval'
         : 'note';
   const initialInterval = targetInterval(practiceTarget);
   const initialString = targetString(practiceTarget);
@@ -252,6 +285,22 @@ export function FlashcardShell({
       : practiceTarget?.topic.endsWith('· Name to formula') ? 'name-to-formula' : 'both'
   );
 
+  // Notation-interval filters
+  const targetNotationParts = practiceTarget?.module === 'Notation Intervals'
+    ? practiceTarget.topic.split(' · ')
+    : [];
+  const targetNotationGeneric = Number(Object.entries(GENERIC_INTERVAL_LABELS)
+    .find(([, label]) => targetNotationParts[0]?.endsWith(label))?.[0] ?? NaN);
+  const [notationClefs, setNotationClefs] = useState<NotationClef[]>(
+    targetNotationParts[2] === 'Bass' ? ['bass'] : ['treble']
+  );
+  const [notationLevels, setNotationLevels] = useState<NotationIntervalLevel[]>(
+    targetNotationParts[1] === 'Quality' ? ['quality'] : ['generic']
+  );
+  const [notationGenerics, setNotationGenerics] = useState<number[]>(
+    Number.isFinite(targetNotationGeneric) ? [targetNotationGeneric] : [2, 3, 4, 5, 6, 7, 8]
+  );
+
   // Session state
   const [noteDeck, setNoteDeck] = useState<NoteCardData[]>([]);
   const [intervalDeck, setIntervalDeck] = useState<IntervalCardData[]>([]);
@@ -259,6 +308,7 @@ export function FlashcardShell({
   const [inDeck, setInDeck] = useState<IntervalNumberCardData[]>([]);
   const [ntDeck, setNtDeck] = useState<NoteTranspositionCardData[]>([]);
   const [tfDeck, setTfDeck] = useState<TheoryFormulaCardData[]>([]);
+  const [notationDeck, setNotationDeck] = useState<NotationIntervalCardData[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [correct, setCorrect] = useState(0);
@@ -301,13 +351,14 @@ export function FlashcardShell({
     activeRef.current = active;
   }, [active]);
 
-  const deck: (NoteCardData | IntervalCardData | PitchClassCardData | IntervalNumberCardData | NoteTranspositionCardData | TheoryFormulaCardData)[] =
+  const deck: (NoteCardData | IntervalCardData | PitchClassCardData | IntervalNumberCardData | NoteTranspositionCardData | TheoryFormulaCardData | NotationIntervalCardData)[] =
     cardMode === 'note' ? noteDeck
       : cardMode === 'interval' ? intervalDeck
       : cardMode === 'pitch-class' ? pcDeck
       : cardMode === 'interval-number' ? inDeck
       : cardMode === 'note-transposition' ? ntDeck
-      : tfDeck;
+      : cardMode === 'theory-formula' ? tfDeck
+      : notationDeck;
 
   const buildAndSetDecks = useCallback((store: SRSStore) => {
     storeRef.current = store;
@@ -349,17 +400,22 @@ export function FlashcardShell({
     const tfResult = srsFilter(tfCandidates, c => theoryFormulaKey(c.category, c.formulaId, c.direction), store);
     setTfDeck(tfResult.deck);
 
+    const notationCandidates = generateNotationIntervalCandidates(notationClefs, notationLevels, notationGenerics);
+    const notationResult = srsFilter(notationCandidates, notationIntervalKey, store);
+    setNotationDeck(notationResult.deck);
+
     const active =
       cardMode === 'note' ? noteResult
         : cardMode === 'interval' ? intResult
         : cardMode === 'pitch-class' ? pcResult
         : cardMode === 'interval-number' ? inResult
         : cardMode === 'note-transposition' ? ntResult
-        : tfResult;
+        : cardMode === 'theory-formula' ? tfResult
+        : notationResult;
     setSessionDue(active.dueCount);
     setSessionNew(active.newCount);
     setNextDue(nextDueAfterToday(store));
-  }, [cardMode, noteStrings, fretStart, fretEnd, fretMode, positionFret, intStrings, intIntervals, intDirection, pcDirection, inDirection, ntIntervals, ntDirection, tfFormulaKeys, tfDirection]);
+  }, [cardMode, noteStrings, fretStart, fretEnd, fretMode, positionFret, intStrings, intIntervals, intDirection, pcDirection, inDirection, ntIntervals, ntDirection, tfFormulaKeys, tfDirection, notationClefs, notationLevels, notationGenerics]);
 
   const restart = useCallback(() => {
     const store = loadStore();
@@ -393,7 +449,7 @@ export function FlashcardShell({
     restart();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const getCardKey = useCallback((card: NoteCardData | IntervalCardData | PitchClassCardData | IntervalNumberCardData | NoteTranspositionCardData | TheoryFormulaCardData): string => {
+  const getCardKey = useCallback((card: NoteCardData | IntervalCardData | PitchClassCardData | IntervalNumberCardData | NoteTranspositionCardData | TheoryFormulaCardData | NotationIntervalCardData): string => {
     if (cardMode === 'note') {
       const c = card as NoteCardData;
       return noteKey(c.stringIndex, c.fret);
@@ -414,6 +470,7 @@ export function FlashcardShell({
       const c = card as NoteTranspositionCardData;
       return noteTranspositionKey(c.rootPitchClass, c.intervalSemitones, c.direction);
     }
+    if (cardMode === 'notation-interval') return notationIntervalKey(card as NotationIntervalCardData);
     const c = card as TheoryFormulaCardData;
     return theoryFormulaKey(c.category, c.formulaId, c.direction);
   }, [cardMode]);
@@ -470,6 +527,11 @@ export function FlashcardShell({
       const directionName = card.direction === 'up' ? 'Up' : 'Down';
       topic = `${intervalName} · ${directionName}`;
       detail = `Start on ${NOTES[card.rootPitchClass]}`;
+    } else if (cardMode === 'notation-interval') {
+      const card = currentCard as NotationIntervalCardData;
+      module = 'Notation Intervals';
+      topic = `${intervalAnswer(card)} · ${card.level === 'generic' ? 'Generic' : 'Quality'} · ${card.clef === 'treble' ? 'Treble' : 'Bass'}`;
+      detail = `${card.generic} staff positions${card.level === 'quality' ? ` · ${card.semitones} semitones` : ''}`;
     } else {
       const card = currentCard as TheoryFormulaCardData;
       const formula = THEORY_FORMULAS.find(item => item.category === card.category && item.id === card.formulaId);
@@ -732,6 +794,7 @@ export function FlashcardShell({
           {modeBtn('pitch-class', 'Note Numbers')}
           {modeBtn('interval-number', 'Interval Numbers')}
           {modeBtn('theory-formula', 'Theory Formulas')}
+          {modeBtn('notation-interval', 'Notation Intervals')}
         </div>
         <div className="flex items-center gap-3 text-sm">
           {deck.length > 0 && (sessionDue > 0 || sessionNew > 0) && (
@@ -743,7 +806,7 @@ export function FlashcardShell({
             </span>
           )}
           <span className="text-gray-500 font-medium">{correct} / {seen}</span>
-          {(cardMode === 'interval' || cardMode === 'note-transposition' || cardMode === 'theory-formula') && intervalStats.completed > 0 && (
+          {(cardMode === 'interval' || cardMode === 'note-transposition' || cardMode === 'theory-formula' || cardMode === 'notation-interval') && intervalStats.completed > 0 && (
             <span className="text-xs text-indigo-600 font-medium">
               First try {intervalStats.firstTry}/{intervalStats.completed}
               {' · '}Score {Math.round(intervalStats.totalScore / intervalStats.completed)}
@@ -1079,6 +1142,47 @@ export function FlashcardShell({
                 Show semitone hint on the prompt
               </label>
             </>
+          ) : cardMode === 'notation-interval' ? (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Notation Intervals</p>
+                  <p className="text-xs text-gray-400">Recognize vertically stacked dyads by staff distance and quality.</p>
+                </div>
+                <button onClick={() => setNotationGenerics([])} className="px-3 py-1.5 rounded border border-red-200 bg-white text-sm font-medium text-red-600 hover:bg-red-50">Clear All</button>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Difficulty</p>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { value: 'generic', label: 'Staff Distance' },
+                    { value: 'quality', label: 'Interval Quality' },
+                  ] as { value: NotationIntervalLevel; label: string }[]).map(option => (
+                    <button key={option.value} onClick={() => setNotationLevels(current => current.includes(option.value) ? current.filter(value => value !== option.value) : [...current, option.value])} className={`px-3 py-1.5 rounded text-sm font-medium ${notationLevels.includes(option.value) ? 'bg-sky-700 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:border-sky-400'}`}>{option.label}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Clef</p>
+                <div className="flex gap-2">
+                  {(['treble', 'bass'] as NotationClef[]).map(clef => (
+                    <button key={clef} onClick={() => setNotationClefs(current => current.includes(clef) ? current.filter(value => value !== clef) : [...current, clef])} className={`px-3 py-1.5 rounded text-sm font-medium capitalize ${notationClefs.includes(clef) ? 'bg-sky-700 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:border-sky-400'}`}>{clef}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Intervals</p>
+                  <button onClick={() => setNotationGenerics([2, 3, 4, 5, 6, 7, 8])} className="text-xs font-semibold text-sky-700 hover:text-sky-900">Select All</button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(GENERIC_INTERVAL_LABELS).map(([value, label]) => {
+                    const generic = Number(value);
+                    return <button key={value} onClick={() => setNotationGenerics(current => current.includes(generic) ? current.filter(item => item !== generic) : [...current, generic].sort((a, b) => a - b))} className={`px-3 py-1.5 rounded text-sm font-medium ${notationGenerics.includes(generic) ? 'bg-sky-700 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:border-sky-400'}`}>{label}</button>;
+                  })}
+                </div>
+              </div>
+            </>
           ) : cardMode === 'theory-formula' ? (
             <>
               <div className="flex items-center justify-between gap-3">
@@ -1277,7 +1381,7 @@ export function FlashcardShell({
         <div className="text-center py-16">
           <p className="text-2xl font-bold text-indigo-700 mb-2">Session Complete!</p>
           <p className="text-gray-500 mb-1">{correct} / {seen} correct</p>
-          {(cardMode === 'interval' || cardMode === 'note-transposition' || cardMode === 'theory-formula') && intervalStats.completed > 0 && (
+          {(cardMode === 'interval' || cardMode === 'note-transposition' || cardMode === 'theory-formula' || cardMode === 'notation-interval') && intervalStats.completed > 0 && (
             <div className="text-sm text-gray-500 mb-3 space-y-1">
               <p>
                 First try: {intervalStats.firstTry} / {intervalStats.completed}
@@ -1363,6 +1467,15 @@ export function FlashcardShell({
               card={currentCard as NoteTranspositionCardData}
               flipped={flipped}
               showSemitones={ntShowSemitones}
+              onFlip={handleFlip}
+              onCorrect={handleIntervalCorrect}
+              onIncorrect={handleIntervalIncorrect}
+            />
+          ) : cardMode === 'notation-interval' ? (
+            <NotationIntervalCard
+              key={`${currentIndex}-${seen}`}
+              card={currentCard as NotationIntervalCardData}
+              flipped={flipped}
               onFlip={handleFlip}
               onCorrect={handleIntervalCorrect}
               onIncorrect={handleIntervalIncorrect}

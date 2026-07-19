@@ -5,6 +5,7 @@ export type PracticeModule =
   | 'Interval Numbers'
   | 'Note Transposition'
   | 'Theory Formulas'
+  | 'Notation Intervals'
   | 'Fretboard Trainer'
   | 'Chord Quiz';
 
