@@ -1,6 +1,6 @@
 export type NotationClef = 'treble' | 'bass';
 export type NotationIntervalLevel = 'generic' | 'quality';
-export type IntervalQuality = 'Minor' | 'Major' | 'Perfect';
+export type IntervalQuality = 'Diminished' | 'Minor' | 'Major' | 'Perfect' | 'Augmented';
 
 export interface NotationIntervalCardData {
   clef: NotationClef;
@@ -15,17 +15,31 @@ export const GENERIC_INTERVAL_LABELS: Record<number, string> = {
 };
 
 export const NOTATION_INTERVAL_DEFINITIONS = [
+  { generic: 2, quality: 'Diminished' as const, semitones: 0 },
   { generic: 2, quality: 'Minor' as const, semitones: 1 },
   { generic: 2, quality: 'Major' as const, semitones: 2 },
+  { generic: 2, quality: 'Augmented' as const, semitones: 3 },
+  { generic: 3, quality: 'Diminished' as const, semitones: 2 },
   { generic: 3, quality: 'Minor' as const, semitones: 3 },
   { generic: 3, quality: 'Major' as const, semitones: 4 },
+  { generic: 3, quality: 'Augmented' as const, semitones: 5 },
+  { generic: 4, quality: 'Diminished' as const, semitones: 4 },
   { generic: 4, quality: 'Perfect' as const, semitones: 5 },
+  { generic: 4, quality: 'Augmented' as const, semitones: 6 },
+  { generic: 5, quality: 'Diminished' as const, semitones: 6 },
   { generic: 5, quality: 'Perfect' as const, semitones: 7 },
+  { generic: 5, quality: 'Augmented' as const, semitones: 8 },
+  { generic: 6, quality: 'Diminished' as const, semitones: 7 },
   { generic: 6, quality: 'Minor' as const, semitones: 8 },
   { generic: 6, quality: 'Major' as const, semitones: 9 },
+  { generic: 6, quality: 'Augmented' as const, semitones: 10 },
+  { generic: 7, quality: 'Diminished' as const, semitones: 9 },
   { generic: 7, quality: 'Minor' as const, semitones: 10 },
   { generic: 7, quality: 'Major' as const, semitones: 11 },
+  { generic: 7, quality: 'Augmented' as const, semitones: 12 },
+  { generic: 8, quality: 'Diminished' as const, semitones: 11 },
   { generic: 8, quality: 'Perfect' as const, semitones: 12 },
+  { generic: 8, quality: 'Augmented' as const, semitones: 13 },
 ];
 
 const NATURAL_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
@@ -45,8 +59,8 @@ export function spelledNote(absoluteDiatonic: number, accidental: number): strin
 }
 
 export function intervalAnswer(card: NotationIntervalCardData): string {
-  if (card.level === 'generic') return GENERIC_INTERVAL_LABELS[card.generic];
-  return card.generic === 8 ? 'Perfect Octave' : `${card.quality} ${GENERIC_INTERVAL_LABELS[card.generic]}`;
+  if (card.level === 'generic') return `Generic ${GENERIC_INTERVAL_LABELS[card.generic]}`;
+  return `${card.quality} ${GENERIC_INTERVAL_LABELS[card.generic]}`;
 }
 
 export function targetAccidental(

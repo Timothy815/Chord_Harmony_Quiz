@@ -1178,7 +1178,7 @@ export function FlashcardShell({
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(GENERIC_INTERVAL_LABELS).map(([value, label]) => {
                     const generic = Number(value);
-                    return <button key={value} onClick={() => setNotationGenerics(current => current.includes(generic) ? current.filter(item => item !== generic) : [...current, generic].sort((a, b) => a - b))} className={`px-3 py-1.5 rounded text-sm font-medium ${notationGenerics.includes(generic) ? 'bg-sky-700 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:border-sky-400'}`}>{label}</button>;
+                    return <button key={value} onClick={() => setNotationGenerics(current => current.includes(generic) ? current.filter(item => item !== generic) : [...current, generic].sort((a, b) => a - b))} className={`px-3 py-1.5 rounded text-sm font-medium ${notationGenerics.includes(generic) ? 'bg-sky-700 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:border-sky-400'}`}>Generic {label}</button>;
                   })}
                 </div>
               </div>

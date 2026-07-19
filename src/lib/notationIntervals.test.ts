@@ -25,3 +25,18 @@ test('every core quality definition has a readable answer', () => {
     assert.ok(answer.length > 2);
   }
 });
+
+test('augmented and diminished fifths retain fifth staff distance', () => {
+  assert.equal(intervalAnswer({ clef: 'treble', level: 'quality', generic: 5, quality: 'Augmented', semitones: 8 }), 'Augmented 5th');
+  assert.equal(intervalAnswer({ clef: 'treble', level: 'quality', generic: 5, quality: 'Diminished', semitones: 6 }), 'Diminished 5th');
+  assert.equal(targetAccidental(28, 5, 8), 1); // C to G-sharp
+  assert.equal(targetAccidental(28, 5, 6), -1); // C to G-flat
+});
+
+test('every core quality has natural starting notes requiring at most one accidental', () => {
+  for (const definition of NOTATION_INTERVAL_DEFINITIONS) {
+    const cleanStarts = Array.from({ length: 7 }, (_, index) => 28 + index)
+      .filter(lower => Math.abs(targetAccidental(lower, definition.generic, definition.semitones)) <= 1);
+    assert.ok(cleanStarts.length > 0, `${definition.quality} ${definition.generic} has no clean spelling`);
+  }
+});

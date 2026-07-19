@@ -61,7 +61,6 @@ function StaffDyad({
         </text>
         {notes.map((note, index) => {
           const y = yFor(note.diatonic);
-          const label = spelledNote(note.diatonic, note.accidental);
           return (
             <g key={`${note.diatonic}-${index}`}>
               {ledgerPositions(note.diatonic).map(position => (
@@ -70,10 +69,16 @@ function StaffDyad({
               {note.accidental !== 0 && <text x={note.x - 28} y={y + 6} fontSize="22" fontFamily="serif" fill="#111827">{note.accidental === 1 ? '♯' : '♭'}</text>}
               <ellipse cx={note.x} cy={y} rx="8" ry="5.5" fill="#111827" transform={`rotate(-14 ${note.x} ${y})`} />
               <line x1={note.x + 7} y1={y} x2={note.x + 7} y2={y - 34} stroke="#111827" strokeWidth="1.6" />
-              {showLabels && <text x={note.x} y="176" textAnchor="middle" fontSize="13" fontWeight="700" fill={index === 0 ? '#4f46e5' : '#b45309'}>{label}</text>}
             </g>
           );
         })}
+        {showLabels && (
+          <text x="158" y="176" textAnchor="middle" fontSize="14" fontWeight="700" fill="#334155">
+            <tspan fill="#4f46e5">{spelledNote(lowerDiatonic, 0)}</tspan>
+            <tspan fill="#64748b"> → </tspan>
+            <tspan fill="#b45309">{spelledNote(upperDiatonic, upperAccidental)}</tspan>
+          </text>
+        )}
       </svg>
     </div>
   );
@@ -85,7 +90,10 @@ export function NotationIntervalCard({ card, flipped, onFlip, onCorrect, onIncor
   const [answerRevealed, setAnswerRevealed] = useState(false);
   const lowerDiatonic = useMemo(() => {
     const start = card.clef === 'treble' ? 28 : 18;
-    return start + Math.floor(Math.random() * 7);
+    const candidates = Array.from({ length: 7 }, (_, index) => start + index)
+      .filter(lower => card.level === 'generic'
+        || Math.abs(targetAccidental(lower, card.generic, card.semitones)) <= 1);
+    return candidates[Math.floor(Math.random() * candidates.length)];
   }, [card.clef, card.generic, card.quality, card.semitones, card.level]);
   const upperDiatonic = lowerDiatonic + card.generic - 1;
   const upperAccidental = card.level === 'quality'
@@ -95,7 +103,7 @@ export function NotationIntervalCard({ card, flipped, onFlip, onCorrect, onIncor
   const upperMidi = naturalMidi(upperDiatonic) + upperAccidental;
   const correctAnswer = intervalAnswer(card);
   const choices = useMemo(() => {
-    if (card.level === 'generic') return shuffle(Object.values(GENERIC_INTERVAL_LABELS));
+    if (card.level === 'generic') return shuffle(Object.values(GENERIC_INTERVAL_LABELS).map(label => `Generic ${label}`));
     return shuffle([...new Set(NOTATION_INTERVAL_DEFINITIONS.map(definition => intervalAnswer({
       clef: card.clef,
       level: 'quality',
