@@ -134,6 +134,36 @@ export function NotationIntervalCard({ card, flipped, onFlip, onCorrect, onIncor
         <p className="mt-2 text-sm text-slate-500">{card.level === 'generic' ? 'Count both notes: what is the staff distance?' : 'Identify the interval number and quality.'}</p>
       </div>
 
+      <details className="mx-auto mt-4 max-w-xl rounded-lg border border-sky-100 bg-sky-50/70 text-left">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-sky-800 hover:text-sky-950">
+          How to think about staff intervals
+        </summary>
+        <div className="space-y-3 border-t border-sky-100 px-4 py-4 text-sm leading-relaxed text-slate-600">
+          <p className="font-semibold text-slate-800">A line-to-space step is a letter step, not necessarily one semitone.</p>
+          <p>
+            First count note letters inclusively to find the generic interval. C–D–E–F–G is five
+            positions, so C to G is a <strong>generic 5th</strong>.
+          </p>
+          <p>
+            Then count semitones, including accidentals, to find its quality. C–G is 7 semitones
+            (Perfect 5th), C–G♭ is 6 (Diminished 5th), and C–G♯ is 8 (Augmented 5th).
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="rounded-md bg-white px-3 py-2">
+              <p className="font-semibold text-slate-800">Perfect family</p>
+              <p className="text-xs">Unison, 4th, 5th, octave: diminished · perfect · augmented</p>
+            </div>
+            <div className="rounded-md bg-white px-3 py-2">
+              <p className="font-semibold text-slate-800">Major/minor family</p>
+              <p className="text-xs">2nd, 3rd, 6th, 7th: diminished · minor · major · augmented</p>
+            </div>
+          </div>
+          <p className="text-xs text-sky-800">
+            Natural half steps occur between E–F and B–C. Other adjacent natural letters are a whole step.
+          </p>
+        </div>
+      </details>
+
       <StaffDyad clef={card.clef} lowerDiatonic={lowerDiatonic} upperDiatonic={upperDiatonic} upperAccidental={upperAccidental} showLabels={flipped} />
 
       {!flipped && (
