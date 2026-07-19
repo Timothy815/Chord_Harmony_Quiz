@@ -181,7 +181,7 @@ const DEFAULT_INTERVALS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 const INTERVAL_OPTIONS = [
   { s: 1, n: 'Min 2nd' }, { s: 2, n: 'Maj 2nd' }, { s: 3, n: 'Min 3rd' },
   { s: 4, n: 'Maj 3rd' }, { s: 5, n: 'Perf 4th' }, { s: 6, n: 'Tritone' },
-  { s: 7, n: 'Perf 5th' }, { s: 8, n: 'Aug 5th' }, { s: 9, n: 'Maj 6th' },
+  { s: 7, n: 'Perf 5th' }, { s: 8, n: 'Min 6th' }, { s: 9, n: 'Maj 6th' },
   { s: 10, n: 'Min 7th' }, { s: 11, n: 'Maj 7th' }, { s: 12, n: 'Octave' },
 ];
 

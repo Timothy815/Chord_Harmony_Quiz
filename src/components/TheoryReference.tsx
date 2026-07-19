@@ -82,7 +82,7 @@ export function TheoryReference({ onNotesSelected, onVoicingSelected }: TheoryRe
               <span className="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">{rootNote}{data.abbr}</span>
             </div>
             <p className="text-sm font-mono text-gray-500 mb-0.5">Intervals: {data.intervals.join(', ')}</p>
-            <p className="text-xs text-gray-400 mb-2">{data.intervals.map(i => INTERVAL_NAMES[i] ?? String(i)).join(' · ')}</p>
+            <p className="text-xs text-gray-400 mb-2">{data.intervals.map(i => name === 'Augmented' && i === 8 ? 'Aug 5th' : INTERVAL_NAMES[i] ?? String(i)).join(' · ')}</p>
             <div className="flex gap-1 flex-wrap mb-3">
               {buildChord(rootNote, data).map(n => (
                 <span key={n} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded">{n}</span>

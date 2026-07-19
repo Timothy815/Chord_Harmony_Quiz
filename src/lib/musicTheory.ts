@@ -98,7 +98,7 @@ export const INTERVAL_NAMES: Record<number, string> = {
   5: 'Perf 4th',
   6: 'Tritone',
   7: 'Perf 5th',
-  8: 'Aug 5th',
+  8: 'Min 6th',
   9: 'Maj 6th',
   10: 'Min 7th',
   11: 'Maj 7th',

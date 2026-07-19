@@ -38,7 +38,7 @@ const ALL_INTERVAL_OPTIONS = [
   { semitones: 5, name: 'Perf 4th' },
   { semitones: 6, name: 'Tritone' },
   { semitones: 7, name: 'Perf 5th' },
-  { semitones: 8, name: 'Aug 5th' },
+  { semitones: 8, name: 'Min 6th' },
   { semitones: 9, name: 'Maj 6th' },
   { semitones: 10, name: 'Min 7th' },
   { semitones: 11, name: 'Maj 7th' },

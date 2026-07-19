@@ -19,7 +19,7 @@ const INTERVAL_DEGREES: Record<number, number> = {
   5: 4,
   6: 4, // Spell the tritone as an augmented fourth.
   7: 5,
-  8: 5,
+  8: 6,
   9: 6,
   10: 7,
   11: 7,

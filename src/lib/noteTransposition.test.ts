@@ -20,6 +20,11 @@ test('tritones are spelled as augmented fourths', () => {
   assert.equal(spellTransposedNote(0, 6, 'down'), 'G♭');
 });
 
+test('eight-semitone transpositions are spelled as minor sixths', () => {
+  assert.equal(spellTransposedNote(0, 8, 'up'), 'A♭');
+  assert.equal(spellTransposedNote(0, 8, 'down'), 'E');
+});
+
 test('every generated spelling resolves to its transposed pitch class', () => {
   const naturalPitchClasses: Record<string, number> = {
     C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11,
