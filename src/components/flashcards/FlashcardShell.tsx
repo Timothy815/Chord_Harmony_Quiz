@@ -304,9 +304,7 @@ export function FlashcardShell({
   const [notationGenerics, setNotationGenerics] = useState<number[]>(
     Number.isFinite(targetNotationGeneric) ? [targetNotationGeneric] : [2, 3, 4, 5, 6, 7, 8]
   );
-  const [notationAdvanced, setNotationAdvanced] = useState(
-    targetNotationParts[0]?.startsWith('Diminished') || targetNotationParts[0]?.startsWith('Augmented')
-  );
+  const [notationAdvanced, setNotationAdvanced] = useState(true);
 
   // Session state
   const [noteDeck, setNoteDeck] = useState<NoteCardData[]>([]);
@@ -1014,13 +1012,6 @@ export function FlashcardShell({
                   ))}
                 </div>
               </div>
-              <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
-                <input type="checkbox" checked={notationAdvanced} onChange={event => setNotationAdvanced(event.target.checked)} className="mt-0.5 rounded" />
-                <span>
-                  <strong className="block text-slate-800">Include advanced spellings</strong>
-                  Diminished and augmented intervals, including enharmonic notes such as F♭ and E♯.
-                </span>
-              </label>
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Intervals</p>
                 <div className="flex flex-wrap gap-2">
@@ -1184,6 +1175,13 @@ export function FlashcardShell({
                   ))}
                 </div>
               </div>
+              <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                <input type="checkbox" checked={notationAdvanced} onChange={event => setNotationAdvanced(event.target.checked)} className="mt-0.5 rounded" />
+                <span>
+                  <strong className="block text-slate-800">Include augmented and diminished</strong>
+                  Practice all interval qualities, including enharmonic spellings such as F♭ and E♯.
+                </span>
+              </label>
               <div>
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Intervals</p>
