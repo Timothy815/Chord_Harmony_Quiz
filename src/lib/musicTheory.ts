@@ -31,6 +31,20 @@ export const CHORDS = {
   Dominant7: { intervals: [0, 4, 7, 10], abbr: '7' },
   HalfDiminished7: { intervals: [0, 3, 6, 10], abbr: 'm7b5' },
   Diminished7: { intervals: [0, 3, 6, 9], abbr: 'dim7' },
+  Major6: { intervals: [0, 4, 7, 9], abbr: '6' },
+  Minor6: { intervals: [0, 3, 7, 9], abbr: 'm6' },
+  MinorMajor7: { intervals: [0, 3, 7, 11], abbr: 'm(maj7)' },
+  Dominant9: { intervals: [0, 4, 7, 10, 2], abbr: '9' },
+  Major9: { intervals: [0, 4, 7, 11, 2], abbr: 'maj9' },
+  Minor9: { intervals: [0, 3, 7, 10, 2], abbr: 'm9' },
+  Major69: { intervals: [0, 4, 7, 9, 2], abbr: '6/9' },
+  Minor69: { intervals: [0, 3, 7, 9, 2], abbr: 'm6/9' },
+  Dominant7b9: { intervals: [0, 4, 7, 10, 1], abbr: '7b9' },
+  Dominant7s9: { intervals: [0, 4, 7, 10, 3], abbr: '7#9' },
+  Dominant7b5: { intervals: [0, 4, 6, 10], abbr: '7b5' },
+  Augmented7: { intervals: [0, 4, 8, 10], abbr: 'aug7' },
+  Dominant13: { intervals: [0, 4, 7, 10, 9], abbr: '13' },
+  Dominant7sus4: { intervals: [0, 5, 7, 10], abbr: '7sus4' },
 };
 
 export function getNoteIndex(noteDef: string): number {

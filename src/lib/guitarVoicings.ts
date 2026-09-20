@@ -165,7 +165,11 @@ function evaluateVoicing(voicing: FretVal[], targetPCs: number[], rootClass: num
   for (const pc of targetPCs) {
     if (playedPCs.has(pc)) matchedTarget++;
   }
-  if (matchedTarget === targetPCs.length) score += 50;
+  // Extended chords (5+ tones) may omit the perfect 5th, as jazz guitarists do.
+  const omittable = rootClass !== null && targetPCs.length >= 5 ? (rootClass + 7) % 12 : null;
+  const required = targetPCs.filter(pc => pc !== omittable);
+  const requiredMatched = required.filter(pc => playedPCs.has(pc)).length;
+  if (requiredMatched === required.length) score += playedPCs.size === targetPCs.length ? 50 : 45;
   else score += matchedTarget * 10;
 
   if (rootClass !== null) {

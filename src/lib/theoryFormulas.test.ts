@@ -14,3 +14,11 @@ test('formulas are unique within each drill category', () => {
     assert.equal(new Set(formulas).size, formulas.length, category);
   }
 });
+
+test('jazz and gypsy-jazz chords have formulas', () => {
+  const chord = (id: string) => THEORY_FORMULAS.find(item => item.category === 'chord' && item.id === id);
+  assert.equal(chord('Minor6')?.formula, '0–3–7–9');
+  assert.equal(chord('Minor69')?.name, 'Minor 6/9');
+  assert.equal(chord('Dominant7b9')?.formula, '0–4–7–10–1');
+  assert.equal(chord('Dominant9')?.name, 'Dominant 9');
+});

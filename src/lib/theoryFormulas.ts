@@ -10,7 +10,18 @@ export interface TheoryFormula {
   description: string;
 }
 
+const DISPLAY_NAMES: Record<string, string> = {
+  MinorMajor7: 'Minor/Major 7',
+  Major69: 'Major 6/9',
+  Minor69: 'Minor 6/9',
+  Dominant7s9: 'Dominant 7♯9',
+  Dominant7b9: 'Dominant 7♭9',
+  Dominant7b5: 'Dominant 7♭5',
+  Dominant7sus4: 'Dominant 7 sus4',
+};
+
 function spacedName(name: string): string {
+  if (DISPLAY_NAMES[name]) return DISPLAY_NAMES[name];
   return name.replace(/([a-z])([A-Z0-9])/g, '$1 $2');
 }
 
