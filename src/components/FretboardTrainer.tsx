@@ -16,6 +16,7 @@ import { recordPractice } from '../lib/analytics';
 import type { PracticeTarget } from '../lib/analytics';
 import { generateRootToRootScaleRun } from '../lib/scaleRun';
 import { ChordConstructionTrainer } from './ChordConstructionTrainer';
+import { CHORD_FAMILY_ORDER, chordFamily } from '../lib/theoryFormulas';
 
 function shuffle<T>(arr: T[]): T[] {
   const next = [...arr];
@@ -621,21 +622,33 @@ export function FretboardTrainer({ practiceTarget }: { practiceTarget?: Practice
           {trainerMode === 'shape-map' && contentTypes.includes('chord') && (
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Chord Types</p>
-              <div className="flex flex-wrap gap-2">
-                {CHORD_TYPE_NAMES.map((name) => (
-                  <button
-                    key={name}
-                    onClick={() => toggleValue(chordTypes, name, setChordTypes)}
-                    className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                      chordTypes.includes(name)
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-white border border-gray-300 text-gray-600 hover:border-indigo-400'
-                    }`}
-                  >
-                    {name}
-                  </button>
-                ))}
-              </div>
+              {CHORD_FAMILY_ORDER.map((family) => {
+                const familyNames = CHORD_TYPE_NAMES.filter((name) => chordFamily(name) === family);
+                if (familyNames.length === 0) return null;
+                const familySelected = familyNames.filter((name) => chordTypes.includes(name)).length;
+                return (
+                  <div key={family} className="mb-3">
+                    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                      {family} · {familySelected}/{familyNames.length}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {familyNames.map((name) => (
+                        <button
+                          key={name}
+                          onClick={() => toggleValue(chordTypes, name, setChordTypes)}
+                          className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                            chordTypes.includes(name)
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-white border border-gray-300 text-gray-600 hover:border-indigo-400'
+                          }`}
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 

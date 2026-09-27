@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { IntervalAttemptResult, scoreIntervalAttempt } from '../../lib/intervalScoring';
 import {
+  formulaDistance,
   formulasForCategory,
   THEORY_FORMULAS,
   TheoryFormulaCategory,
@@ -15,11 +16,15 @@ export interface TheoryFormulaCardData {
 
 interface TheoryFormulaCardProps {
   card: TheoryFormulaCardData;
+  /** Ids (within card.category) the learner currently has enabled — distractors are drawn only from these. */
+  selectedFormulaIds: string[];
   flipped: boolean;
   onFlip: () => void;
   onCorrect: (result: IntervalAttemptResult) => void;
   onIncorrect: () => void;
 }
+
+const MAX_CHOICES = 9;
 
 const CATEGORY_LABELS: Record<TheoryFormulaCategory, string> = {
   scale: 'Scale pattern',
@@ -29,6 +34,7 @@ const CATEGORY_LABELS: Record<TheoryFormulaCategory, string> = {
 
 export function TheoryFormulaCard({
   card,
+  selectedFormulaIds,
   flipped,
   onFlip,
   onCorrect,
@@ -42,10 +48,18 @@ export function TheoryFormulaCard({
   );
   if (!formula) return null;
 
-  const choices = useMemo(
-    () => shuffle(formulasForCategory(card.category)),
-    [card.category],
-  );
+  const selectedIdsKey = selectedFormulaIds.join(',');
+  const choices = useMemo(() => {
+    const pool = shuffle(
+      formulasForCategory(card.category).filter(
+        item => item.id !== card.formulaId && selectedFormulaIds.includes(item.id)
+      )
+    );
+    // Rank by how confusable each distractor is (closest pitch-class match first).
+    pool.sort((a, b) => formulaDistance(formula, a) - formulaDistance(formula, b));
+    const distractors = pool.slice(0, MAX_CHOICES - 1);
+    return shuffle([formula, ...distractors]);
+  }, [card.category, card.formulaId, selectedIdsKey]);
   const correctValue = card.direction === 'name-to-formula' ? formula.formula : formula.id;
   const choose = (value: string) => {
     if (flipped) return;
@@ -80,7 +94,7 @@ export function TheoryFormulaCard({
       </div>
 
       {!flipped && (
-        <div className="mx-auto mt-7 grid max-w-xl grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="mx-auto mt-7 grid max-w-xl grid-cols-3 gap-2">
           {choices.map(choice => {
             const value = card.direction === 'name-to-formula' ? choice.formula : choice.id;
             const label = card.direction === 'name-to-formula' ? choice.formula : choice.name;

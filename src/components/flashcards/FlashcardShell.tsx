@@ -8,7 +8,13 @@ import { PitchClassCard, PitchClassCardData } from './PitchClassCard';
 import { IntervalNumberCard, IntervalNumberCardData } from './IntervalNumberCard';
 import { NoteTranspositionCard, NoteTranspositionCardData } from './NoteTranspositionCard';
 import { TheoryFormulaCard, TheoryFormulaCardData } from './TheoryFormulaCard';
-import { THEORY_FORMULAS, TheoryFormulaCategory } from '../../lib/theoryFormulas';
+import {
+  CHORD_FAMILY_ORDER,
+  chordFamily,
+  THEORY_FORMULAS,
+  TheoryFormula,
+  TheoryFormulaCategory,
+} from '../../lib/theoryFormulas';
 import { NotationIntervalCard } from './NotationIntervalCard';
 import {
   GENERIC_INTERVAL_LABELS,
@@ -757,6 +763,24 @@ export function FlashcardShell({
       : current.filter(key => !categoryKeys.includes(key)));
   };
 
+  const renderTfFormulaChip = (formula: TheoryFormula) => {
+    const key = theoryFormulaSelectionKey(formula.category, formula.id);
+    const selected = tfFormulaKeys.includes(key);
+    return (
+      <button
+        key={key}
+        onClick={() => toggleTfFormula(formula.category, formula.id)}
+        className={`rounded px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+          selected
+            ? 'bg-amber-600 text-white'
+            : 'border border-gray-300 bg-white text-gray-600 hover:border-amber-400'
+        }`}
+      >
+        {formula.name}
+      </button>
+    );
+  };
+
   const isDone = deck.length > 0 && currentIndex >= deck.length;
   const currentCard = deck[currentIndex];
 
@@ -1229,25 +1253,31 @@ export function FlashcardShell({
                         <button onClick={() => setTfCategory(group.category, false)} className="text-gray-400 hover:text-gray-700">Clear</button>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {formulas.map(formula => {
-                        const key = theoryFormulaSelectionKey(formula.category, formula.id);
-                        const selected = tfFormulaKeys.includes(key);
-                        return (
-                          <button
-                            key={key}
-                            onClick={() => toggleTfFormula(formula.category, formula.id)}
-                            className={`rounded px-2.5 py-1.5 text-xs font-semibold transition-colors ${
-                              selected
-                                ? 'bg-amber-600 text-white'
-                                : 'border border-gray-300 bg-white text-gray-600 hover:border-amber-400'
-                            }`}
-                          >
-                            {formula.name}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {group.category === 'chord' ? (
+                      <div className="space-y-3">
+                        {CHORD_FAMILY_ORDER.map(family => {
+                          const familyFormulas = formulas.filter(formula => chordFamily(formula.id) === family);
+                          if (familyFormulas.length === 0) return null;
+                          const familySelected = familyFormulas.filter(formula =>
+                            tfFormulaKeys.includes(theoryFormulaSelectionKey(formula.category, formula.id))
+                          ).length;
+                          return (
+                            <div key={family}>
+                              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                                {family} · {familySelected}/{familyFormulas.length}
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {familyFormulas.map(formula => renderTfFormulaChip(formula))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {formulas.map(formula => renderTfFormulaChip(formula))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1497,6 +1527,12 @@ export function FlashcardShell({
             <TheoryFormulaCard
               key={`${currentIndex}-${seen}`}
               card={currentCard as TheoryFormulaCardData}
+              selectedFormulaIds={THEORY_FORMULAS
+                .filter(formula =>
+                  formula.category === (currentCard as TheoryFormulaCardData).category
+                  && tfFormulaKeys.includes(theoryFormulaSelectionKey(formula.category, formula.id))
+                )
+                .map(formula => formula.id)}
               flipped={flipped}
               onFlip={handleFlip}
               onCorrect={handleIntervalCorrect}

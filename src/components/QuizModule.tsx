@@ -3,6 +3,7 @@ import { NOTES, CHORDS, buildChord, SCALES, buildScale, getMidiFromNoteStrAndOct
 import { recordPractice } from '../lib/analytics';
 import type { PracticeTarget } from '../lib/analytics';
 import { shuffle } from '../lib/shuffle';
+import { CHORD_FAMILY_ORDER, chordFamily } from '../lib/theoryFormulas';
 
 interface QuizModuleProps {
   activeNotes: number[];
@@ -203,19 +204,31 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes, practi
       {showSettings && (
         <div className="mb-4 p-4 bg-white rounded border border-indigo-100 shadow-inner">
            <h3 className="text-sm font-semibold text-gray-700 mb-2">Allowed Chord Types</h3>
-           <div className="flex flex-wrap gap-2">
-             {Object.keys(CHORDS).map(type => (
-               <label key={type} className="flex items-center gap-1.5 text-sm text-gray-600 bg-gray-50 px-2 py-1 rounded border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
-                 <input 
-                   type="checkbox" 
-                   checked={allowedChordTypes.includes(type)}
-                   onChange={() => toggleChordType(type)}
-                   className="rounded text-indigo-600 focus:ring-indigo-500"
-                 />
-                 {(CHORDS as any)[type].abbr ? `${type} (${(CHORDS as any)[type].abbr})` : type}
-               </label>
-             ))}
-           </div>
+           {CHORD_FAMILY_ORDER.map(family => {
+             const familyTypes = Object.keys(CHORDS).filter(type => chordFamily(type) === family);
+             if (familyTypes.length === 0) return null;
+             const familySelected = familyTypes.filter(type => allowedChordTypes.includes(type)).length;
+             return (
+               <div key={family} className="mb-3">
+                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                   {family} · {familySelected}/{familyTypes.length}
+                 </p>
+                 <div className="flex flex-wrap gap-2">
+                   {familyTypes.map(type => (
+                     <label key={type} className="flex items-center gap-1.5 text-sm text-gray-600 bg-gray-50 px-2 py-1 rounded border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
+                       <input
+                         type="checkbox"
+                         checked={allowedChordTypes.includes(type)}
+                         onChange={() => toggleChordType(type)}
+                         className="rounded text-indigo-600 focus:ring-indigo-500"
+                       />
+                       {(CHORDS as any)[type].abbr ? `${type} (${(CHORDS as any)[type].abbr})` : type}
+                     </label>
+                   ))}
+                 </div>
+               </div>
+             );
+           })}
            <p className="text-xs text-gray-400 mt-2">Changes will apply to the next question generated.</p>
         </div>
       )}
@@ -290,7 +303,7 @@ export function QuizModule({ activeNotes, onSetTargetNotes, onClearNotes, practi
                     }}
                     className="text-3xl font-bold text-indigo-600 bg-transparent border-b-2 border-transparent hover:border-indigo-200 focus:outline-none focus:border-indigo-600 pb-1 cursor-pointer cursor-pointer appearance-none"
                   >
-                    {Object.keys(CHORDS).map(c => <option key={c} value={c}>{(CHORDS as any)[c].abbr || c}</option>)}
+                    {allowedChordTypes.map(c => <option key={c} value={c}>{(CHORDS as any)[c].abbr || c}</option>)}
                   </select>
                 </div>
                 <p className="text-xs text-gray-400 mb-4">{(CHORDS as any)[targetChord.chord].intervals.join(', ')}</p>
